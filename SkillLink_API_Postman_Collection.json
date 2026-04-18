@@ -1,0 +1,1182 @@
+{
+	"info": {
+		"_postman_id": "skilllink-api-collection-2026",
+		"name": "SkillLink API — Web Services Demo",
+		"description": "Complete Postman collection for demonstrating SkillLink Web Services.\n\n🔧 **Setup:**\n1. Import this collection into Postman\n2. Set environment variable `base_url` to `http://localhost:5005`\n3. Run 'Login as Admin' first — it auto-saves the JWT token\n4. All protected endpoints will automatically use the saved token\n\n📌 **Test Credentials:**\n- Admin: admin@skilllink.com / Admin@123\n- Customer: ananya@example.com / Customer@123\n- Worker: rajesh@skilllink.com / Worker@123\n- Seller: mahesh@skilllink.com / Seller@123\n- Delivery: raju@skilllink.com / Delivery@123\n- Verifier: verifier@skilllink.com / Verifier@123",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5005",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "🏥 1. Health Check",
+			"item": [
+				{
+					"name": "API Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/health",
+							"host": ["{{base_url}}"],
+							"path": ["api", "health"]
+						},
+						"description": "Check if the API server is running. No authentication required."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔐 2. Authentication & Users",
+			"item": [
+				{
+					"name": "Register New Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Test Customer\",\n  \"email\": \"testcustomer@example.com\",\n  \"password\": \"Test@123\",\n  \"phone\": \"9999999999\",\n  \"role\": \"customer\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Register a new user. Supports roles: customer, worker, seller, delivery."
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Admin ⭐",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.token) {",
+									"    pm.collectionVariables.set('token', jsonData.token);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('userId', jsonData.user._id);",
+									"    pm.test('Login successful — Token saved!', function() {",
+									"        pm.expect(jsonData.success).to.be.true;",
+									"    });",
+									"    console.log('✅ Token saved to collection variables');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@skilllink.com\",\n  \"password\": \"Admin@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as Admin. The JWT token is AUTOMATICALLY saved to collection variables for use in all subsequent requests."
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Customer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.token) {",
+									"    pm.collectionVariables.set('token', jsonData.token);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('userId', jsonData.user._id);",
+									"    pm.test('Login successful — Token saved!', function() {",
+									"        pm.expect(jsonData.success).to.be.true;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"ananya@example.com\",\n  \"password\": \"Customer@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as Customer. Token auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Worker",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.token) {",
+									"    pm.collectionVariables.set('token', jsonData.token);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('userId', jsonData.user._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"rajesh@skilllink.com\",\n  \"password\": \"Worker@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as Worker (Electrician). Token auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Seller",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.token) {",
+									"    pm.collectionVariables.set('token', jsonData.token);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('userId', jsonData.user._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"mahesh@skilllink.com\",\n  \"password\": \"Seller@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as Seller. Token auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Delivery Person",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.token) {",
+									"    pm.collectionVariables.set('token', jsonData.token);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('userId', jsonData.user._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"raju@skilllink.com\",\n  \"password\": \"Delivery@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as Delivery Person. Token auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Verifier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.token) {",
+									"    pm.collectionVariables.set('token', jsonData.token);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('userId', jsonData.user._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"verifier@skilllink.com\",\n  \"password\": \"Verifier@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as Verifier. Token auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/profile",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "profile"]
+						},
+						"description": "Get the currently logged-in user's profile. Requires JWT token."
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/refresh-token",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "refresh-token"]
+						},
+						"description": "Refresh an expired access token using the refresh token."
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"ananya@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/forgot-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "forgot-password"]
+						},
+						"description": "Request a password reset email."
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/logout",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "logout"]
+						},
+						"description": "Logout the current user."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔧 3. Services",
+			"item": [
+				{
+					"name": "Get All Services",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/services",
+							"host": ["{{base_url}}"],
+							"path": ["api", "services"]
+						},
+						"description": "Get all services. Supports ?category=electrician&search=fan&page=1&limit=10"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Services by Category (Electrician)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/services?category=electrician",
+							"host": ["{{base_url}}"],
+							"path": ["api", "services"],
+							"query": [
+								{ "key": "category", "value": "electrician" }
+							]
+						},
+						"description": "Filter services by category."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/services/categories",
+							"host": ["{{base_url}}"],
+							"path": ["api", "services", "categories"]
+						},
+						"description": "Get unique service categories (electrician, plumber, carpenter)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Workers by Category",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/services/category/electrician/workers",
+							"host": ["{{base_url}}"],
+							"path": ["api", "services", "category", "electrician", "workers"]
+						},
+						"description": "Get all workers for a specific service category."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📅 4. Bookings",
+			"item": [
+				{
+					"name": "Get My Bookings",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/bookings",
+							"host": ["{{base_url}}"],
+							"path": ["api", "bookings"]
+						},
+						"description": "Get bookings for the logged-in user (customer or worker). Login as customer first."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Bookings (Paginated)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/bookings?page=1&limit=5&status=pending",
+							"host": ["{{base_url}}"],
+							"path": ["api", "bookings"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "5" },
+								{ "key": "status", "value": "pending" }
+							]
+						},
+						"description": "Get bookings with pagination and status filter."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🛒 5. Supplies (Products)",
+			"item": [
+				{
+					"name": "Get All Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/supplies",
+							"host": ["{{base_url}}"],
+							"path": ["api", "supplies"]
+						},
+						"description": "Browse all products. No auth required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Products by Category (Electrical)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/supplies?category=electrical",
+							"host": ["{{base_url}}"],
+							"path": ["api", "supplies"],
+							"query": [
+								{ "key": "category", "value": "electrical" }
+							]
+						},
+						"description": "Filter products by category."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Products with Price Range",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/supplies?minPrice=100&maxPrice=500",
+							"host": ["{{base_url}}"],
+							"path": ["api", "supplies"],
+							"query": [
+								{ "key": "minPrice", "value": "100" },
+								{ "key": "maxPrice", "value": "500" }
+							]
+						},
+						"description": "Filter products by price range."
+					},
+					"response": []
+				},
+				{
+					"name": "Search Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/supplies?search=LED",
+							"host": ["{{base_url}}"],
+							"path": ["api", "supplies"],
+							"query": [
+								{ "key": "search", "value": "LED" }
+							]
+						},
+						"description": "Search products by name or description."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Unique Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/supplies/unique",
+							"host": ["{{base_url}}"],
+							"path": ["api", "supplies", "unique"]
+						},
+						"description": "Get unique products grouped by name."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Products (Seller)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/supplies/my-products",
+							"host": ["{{base_url}}"],
+							"path": ["api", "supplies", "my-products"]
+						},
+						"description": "Get seller's own products. Login as seller first."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📦 6. Orders",
+			"item": [
+				{
+					"name": "Get My Orders (Customer)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/orders",
+							"host": ["{{base_url}}"],
+							"path": ["api", "orders"]
+						},
+						"description": "Get customer's orders. Login as customer first."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Seller Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/orders/seller",
+							"host": ["{{base_url}}"],
+							"path": ["api", "orders", "seller"]
+						},
+						"description": "Get seller's received orders. Login as seller first."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "💳 7. Payments",
+			"item": [
+				{
+					"name": "Get Payment History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/payment?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "payment"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "10" }
+							]
+						},
+						"description": "Get payment history for the logged-in user."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "⭐ 8. Reviews",
+			"item": [
+				{
+					"name": "Add Worker Review",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"workerId\": \"PASTE_WORKER_ID_HERE\",\n  \"rating\": 5,\n  \"comment\": \"Excellent work! Very professional.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reviews/worker",
+							"host": ["{{base_url}}"],
+							"path": ["api", "reviews", "worker"]
+						},
+						"description": "Add a review for a worker. Login as customer first. Get workerId from Services > Get Workers by Category."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Product Review",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"productId\": \"PASTE_PRODUCT_ID_HERE\",\n  \"rating\": 4,\n  \"comment\": \"Great quality product, fast delivery.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reviews/product",
+							"host": ["{{base_url}}"],
+							"path": ["api", "reviews", "product"]
+						},
+						"description": "Add a review for a product. Login as customer."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔔 9. Notifications",
+			"item": [
+				{
+					"name": "Get My Notifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "10" }
+							]
+						},
+						"description": "Get logged-in user's notifications."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Unread Count",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/unread-count",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "unread-count"]
+						},
+						"description": "Get unread notification count."
+					},
+					"response": []
+				},
+				{
+					"name": "Mark All Notifications Read",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/mark-all-read",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "mark-all-read"]
+						},
+						"description": "Mark all notifications as read."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📊 10. Dashboard Stats",
+			"item": [
+				{
+					"name": "Customer Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/customer/stats",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "customer", "stats"]
+						},
+						"description": "Get customer dashboard stats. Login as customer first."
+					},
+					"response": []
+				},
+				{
+					"name": "Worker Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/worker/stats",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "worker", "stats"]
+						},
+						"description": "Get worker dashboard stats (earnings, bookings, reviews). Login as worker first."
+					},
+					"response": []
+				},
+				{
+					"name": "Seller Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/seller/stats",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "seller", "stats"]
+						},
+						"description": "Get seller dashboard stats (products, orders, revenue). Login as seller first."
+					},
+					"response": []
+				},
+				{
+					"name": "Delivery Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/delivery/stats",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "delivery", "stats"]
+						},
+						"description": "Get delivery dashboard stats. Login as delivery first."
+					},
+					"response": []
+				},
+				{
+					"name": "Admin Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/admin/stats",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "admin", "stats"]
+						},
+						"description": "Get admin dashboard stats (system-wide overview). Login as admin first."
+					},
+					"response": []
+				},
+				{
+					"name": "Seller Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/seller/profile",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "seller", "profile"]
+						},
+						"description": "Get seller profile details. Login as seller first."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🚚 11. Delivery",
+			"item": [
+				{
+					"name": "Delivery Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/delivery/stats",
+							"host": ["{{base_url}}"],
+							"path": ["api", "delivery", "stats"]
+						},
+						"description": "Get delivery person stats. Login as delivery first."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Delivery Requests",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/delivery/requests",
+							"host": ["{{base_url}}"],
+							"path": ["api", "delivery", "requests"]
+						},
+						"description": "Get pending delivery requests."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Delivery History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/delivery/history",
+							"host": ["{{base_url}}"],
+							"path": ["api", "delivery", "history"]
+						},
+						"description": "Get delivery history."
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Delivery Availability",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/delivery/availability",
+							"host": ["{{base_url}}"],
+							"path": ["api", "delivery", "availability"]
+						},
+						"description": "Toggle delivery person availability."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "👷 12. Workers",
+			"item": [
+				{
+					"name": "Update Worker Availability",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isAvailable\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/workers/availability",
+							"host": ["{{base_url}}"],
+							"path": ["api", "workers", "availability"]
+						},
+						"description": "Update worker availability. Login as worker first."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🛡️ 13. Admin",
+			"item": [
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/users?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "users"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "10" }
+							]
+						},
+						"description": "Get all registered users (admin only)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Users by Role",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/users?role=worker",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "users"],
+							"query": [
+								{ "key": "role", "value": "worker" }
+							]
+						},
+						"description": "Filter users by role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Approved Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/users/approved",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "users", "approved"]
+						},
+						"description": "Get all approved users."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Rejected Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/users/rejected",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "users", "rejected"]
+						},
+						"description": "Get all rejected users."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Verifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/verifications/pending",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "verifications", "pending"]
+						},
+						"description": "Get all pending verification requests."
+					},
+					"response": []
+				},
+				{
+					"name": "Get System Analytics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/analytics",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "analytics"]
+						},
+						"description": "Get system-wide analytics (admin only)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "✅ 14. Verifier",
+			"item": [
+				{
+					"name": "Verifier Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/verifier/stats",
+							"host": ["{{base_url}}"],
+							"path": ["api", "verifier", "stats"]
+						},
+						"description": "Get verifier dashboard stats. Login as verifier first."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/verifier/pending",
+							"host": ["{{base_url}}"],
+							"path": ["api", "verifier", "pending"]
+						},
+						"description": "Get all pending users for verification."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔍 15. Search",
+			"item": [
+				{
+					"name": "Global Search — All",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/search?query=electrician",
+							"host": ["{{base_url}}"],
+							"path": ["api", "search"],
+							"query": [
+								{ "key": "query", "value": "electrician" }
+							]
+						},
+						"description": "Search across services, products, and workers."
+					},
+					"response": []
+				},
+				{
+					"name": "Search Services Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/search?query=fan&type=services",
+							"host": ["{{base_url}}"],
+							"path": ["api", "search"],
+							"query": [
+								{ "key": "query", "value": "fan" },
+								{ "key": "type", "value": "services" }
+							]
+						},
+						"description": "Search only within services."
+					},
+					"response": []
+				},
+				{
+					"name": "Search Products Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/search?query=LED&type=products",
+							"host": ["{{base_url}}"],
+							"path": ["api", "search"],
+							"query": [
+								{ "key": "query", "value": "LED" },
+								{ "key": "type", "value": "products" }
+							]
+						},
+						"description": "Search only within products."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📄 16. Swagger & OpenAPI Spec",
+			"item": [
+				{
+					"name": "Get OpenAPI JSON Spec",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.test('OpenAPI version is 3.0.0', function() {",
+									"    pm.expect(jsonData.openapi).to.eql('3.0.0');",
+									"});",
+									"pm.test('Has paths defined', function() {",
+									"    pm.expect(Object.keys(jsonData.paths).length).to.be.above(50);",
+									"});",
+									"pm.test('Has component schemas', function() {",
+									"    pm.expect(Object.keys(jsonData.components.schemas).length).to.be.above(5);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api-docs.json",
+							"host": ["{{base_url}}"],
+							"path": ["api-docs.json"]
+						},
+						"description": "Get the raw OpenAPI 3.0 JSON specification. This is the machine-readable API documentation."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

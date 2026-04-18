@@ -40,7 +40,7 @@ SkillLink is a full-stack web application that bridges the gap between:```
 
 - **Customers** seeking home services (electricians, plumbers, carpenters) and supplies
 
-- **Skilled Workers** offering professional servicesThat's it! The application will be available at:
+- **Skilled Workers**  offering professional servicesThat's it! The application will be available at:
 
 - **Sellers** providing quality hardware and supplies- **Frontend**: http://localhost:3000
 
