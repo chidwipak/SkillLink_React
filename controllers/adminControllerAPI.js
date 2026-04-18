@@ -365,9 +365,18 @@ exports.getUserDetails = async (req, res) => {
           { $group: { _id: null, total: { $sum: { $multiply: ["$items.price", "$items.quantity"] } } } }
         ]);
 
-        // Get top products
-        const topProducts = await Product.find({ seller: seller._id })
-          .sort({ rating: -1 }).limit(5);
+        // Get top products by actual sales
+        const topProducts = await Order.aggregate([
+          { $match: { status: { $ne: "cancelled" } } },
+          { $unwind: "$items" },
+          { $match: { "items.seller": seller._id } },
+          { $group: { _id: "$items.product", unitsSold: { $sum: "$items.quantity" }, revenue: { $sum: { $multiply: ["$items.price", "$items.quantity"] } } } },
+          { $sort: { unitsSold: -1 } },
+          { $limit: 5 },
+          { $lookup: { from: "products", localField: "_id", foreignField: "_id", as: "product" } },
+          { $unwind: "$product" },
+          { $project: { _id: "$product._id", name: "$product.name", price: "$product.price", rating: "$product.rating", inStock: { $gt: ["$product.stock", 0] }, unitsSold: 1, revenue: 1 } }
+        ]);
 
         // Get recent orders
         const recentOrders = await Order.find({ "items.seller": seller._id })

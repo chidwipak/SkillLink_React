@@ -6,6 +6,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner'
 import DashboardSkeleton from '../../components/common/DashboardSkeleton'
 import ImageWithFallback from '../../components/common/ImageWithFallback'
 import PieChart from '../../components/ui/PieChart'
+import EarningsOverview from '../../components/ui/EarningsOverview'
 import AdminUserDetailPanel from '../../components/admin/AdminUserDetailPanel'
 
 const AdminDashboard = () => {
@@ -262,6 +263,13 @@ const AdminDashboard = () => {
         )}
 
         {activeTab === 'overview' && (<>
+          {/* Platform Revenue Breakdown - Daily/Weekly/Monthly/Yearly */}
+          <EarningsOverview
+            apiUrl="/dashboard/earnings/breakdown"
+            title="Platform Revenue Breakdown"
+            currencyLabel="Revenue"
+          />
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '24px' }}>
             <div className="sk-card sk-animate"><div className="sk-card-header"><h3 className="sk-card-title"><i className="fas fa-chart-pie"></i> User Distribution</h3></div><div className="sk-card-body sk-chart-container">{userChartData.length > 0 ? <PieChart data={userChartData} size={170} innerRadius={0.6} showLegend={true} /> : <div className="sk-empty"><p className="sk-empty-text">No data</p></div>}</div></div>
             <div className="sk-card sk-animate"><div className="sk-card-header"><h3 className="sk-card-title"><i className="fas fa-chart-pie"></i> Booking Status</h3></div><div className="sk-card-body sk-chart-container">{bookingChartData.length > 0 ? <PieChart data={bookingChartData} size={170} innerRadius={0.6} showLegend={true} /> : <div className="sk-empty"><p className="sk-empty-text">No data</p></div>}</div></div>

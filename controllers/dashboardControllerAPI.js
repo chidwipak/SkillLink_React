@@ -427,10 +427,10 @@ exports.getSellerStats = async (req, res) => {
 
     const Product = require("../models/Product");
 
-    // Get products stats
+    // Get products stats (Product model uses 'stock' as Number, not 'inStock' boolean)
     const totalProducts = await Product.countDocuments({ seller: seller._id });
-    const activeProducts = await Product.countDocuments({ seller: seller._id, inStock: true });
-    const outOfStockProducts = await Product.countDocuments({ seller: seller._id, inStock: false });
+    const activeProducts = await Product.countDocuments({ seller: seller._id, stock: { $gt: 0 } });
+    const outOfStockProducts = await Product.countDocuments({ seller: seller._id, stock: { $lte: 0 } });
 
     // Get recent products
     const recentProducts = await Product.find({ seller: seller._id })
@@ -555,12 +555,67 @@ exports.getSellerStats = async (req, res) => {
     allReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
     const sellerReviews = allReviews.slice(0, 10);
 
-    // Get top products by rating and sales
-    const topProducts = await Product.find({ seller: seller._id })
-      .sort({ rating: -1, numReviews: -1 })
-      .limit(5)
-      .select("name price rating numReviews inStock images")
-      .lean();
+    // Get top selling products by actual order quantity (not just rating)
+    const bestSellingAggregation = async (dateFilter) => {
+      const matchStage = { "items.seller": seller._id, status: { $ne: "cancelled" } };
+      if (dateFilter) matchStage.createdAt = dateFilter;
+      return Order.aggregate([
+        { $match: dateFilter ? { status: { $ne: "cancelled" }, createdAt: dateFilter } : { status: { $ne: "cancelled" } } },
+        { $unwind: "$items" },
+        { $match: { "items.seller": seller._id } },
+        {
+          $group: {
+            _id: "$items.product",
+            unitsSold: { $sum: "$items.quantity" },
+            revenue: { $sum: { $multiply: ["$items.price", "$items.quantity"] } },
+            orderCount: { $sum: 1 }
+          }
+        },
+        { $sort: { unitsSold: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: "products",
+            localField: "_id",
+            foreignField: "_id",
+            as: "product"
+          }
+        },
+        { $unwind: "$product" },
+        {
+          $project: {
+            _id: "$product._id",
+            name: "$product.name",
+            price: "$product.price",
+            rating: "$product.rating",
+            stock: "$product.stock",
+            images: "$product.images",
+            reviewCount: { $size: { $ifNull: ["$product.reviews", []] } },
+            unitsSold: 1,
+            revenue: 1,
+            orderCount: 1
+          }
+        }
+      ]);
+    };
+
+    const now = new Date();
+    const bsStartOfWeek = new Date(now);
+    bsStartOfWeek.setDate(now.getDate() - now.getDay());
+    bsStartOfWeek.setHours(0, 0, 0, 0);
+
+    const bsStartOfMonth = new Date(now);
+    bsStartOfMonth.setDate(1);
+    bsStartOfMonth.setHours(0, 0, 0, 0);
+
+    const bsStartOfYear = new Date(now.getFullYear(), 0, 1);
+
+    const [topProductsOverall, topProductsWeekly, topProductsMonthly, topProductsYearly] = await Promise.all([
+      bestSellingAggregation(null),
+      bestSellingAggregation({ $gte: bsStartOfWeek }),
+      bestSellingAggregation({ $gte: bsStartOfMonth }),
+      bestSellingAggregation({ $gte: bsStartOfYear })
+    ]);
 
     res.json({
       seller: {
@@ -587,7 +642,12 @@ exports.getSellerStats = async (req, res) => {
         monthly: monthlyRevenue
       },
       reviews: sellerReviews,
-      topProducts
+      topProducts: {
+        overall: topProductsOverall,
+        weekly: topProductsWeekly,
+        monthly: topProductsMonthly,
+        yearly: topProductsYearly
+      }
     });
   } catch (error) {
     console.error("Get seller stats error:", error);
@@ -982,6 +1042,249 @@ exports.updateSellerShopSettings = async (req, res) => {
   } catch (error) {
     console.error("Update seller shop settings error:", error);
     res.status(500).json({ message: "Failed to update shop settings", error: error.message });
+  }
+};
+
+// Get earnings breakdown (daily, weekly, monthly, yearly)
+exports.getEarningsBreakdown = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const role = req.user.role;
+    const mongoose = require("mongoose");
+
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(now);
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    let earnings = { daily: 0, weekly: 0, monthly: 0, yearly: 0, total: 0 };
+
+    if (role === "worker") {
+      const worker = await Worker.findOne({ user: userId });
+      if (!worker) return res.status(404).json({ message: "Worker profile not found" });
+
+      const aggregate = async (dateFilter) => {
+        const match = { worker: worker._id, status: "completed" };
+        if (dateFilter) match.completedAt = dateFilter;
+        const result = await Booking.aggregate([
+          { $match: match },
+          { $group: { _id: null, total: { $sum: { $ifNull: ["$finalPrice", "$price"] } } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+
+      earnings.daily = await aggregate({ $gte: startOfDay });
+      earnings.weekly = await aggregate({ $gte: startOfWeek });
+      earnings.monthly = await aggregate({ $gte: startOfMonth });
+      earnings.yearly = await aggregate({ $gte: startOfYear });
+      earnings.total = await aggregate(null);
+
+    } else if (role === "seller") {
+      const seller = await Seller.findOne({ user: userId });
+      if (!seller) return res.status(404).json({ message: "Seller profile not found" });
+
+      const aggregate = async (dateFilter) => {
+        const match = { "items.seller": seller._id, status: { $ne: "cancelled" } };
+        if (dateFilter) match.createdAt = dateFilter;
+        const result = await Order.aggregate([
+          { $unwind: "$items" },
+          { $match: match },
+          { $group: { _id: null, total: { $sum: { $multiply: ["$items.price", "$items.quantity"] } } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+
+      earnings.daily = await aggregate({ $gte: startOfDay });
+      earnings.weekly = await aggregate({ $gte: startOfWeek });
+      earnings.monthly = await aggregate({ $gte: startOfMonth });
+      earnings.yearly = await aggregate({ $gte: startOfYear });
+      earnings.total = await aggregate(null);
+
+    } else if (role === "delivery") {
+      const DeliveryAssignment = require("../models/DeliveryAssignment");
+      const userObjectId = new mongoose.Types.ObjectId(userId);
+
+      const aggregate = async (dateFilter) => {
+        const match = { deliveryPerson: userObjectId, status: "delivered" };
+        if (dateFilter) match.deliveredAt = dateFilter;
+        const result = await DeliveryAssignment.aggregate([
+          { $match: match },
+          { $lookup: { from: "orders", localField: "order", foreignField: "_id", as: "orderData" } },
+          { $unwind: "$orderData" },
+          { $group: { _id: null, total: { $sum: "$orderData.deliveryFee" } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+
+      earnings.daily = await aggregate({ $gte: startOfDay });
+      earnings.weekly = await aggregate({ $gte: startOfWeek });
+      earnings.monthly = await aggregate({ $gte: startOfMonth });
+      earnings.yearly = await aggregate({ $gte: startOfYear });
+      earnings.total = await aggregate(null);
+
+    } else if (role === "admin") {
+      // Admin sees platform-wide earnings
+      const aggregateBookings = async (dateFilter) => {
+        const match = { status: "completed" };
+        if (dateFilter) match.completedAt = dateFilter;
+        const result = await Booking.aggregate([
+          { $match: match },
+          { $group: { _id: null, total: { $sum: { $ifNull: ["$finalPrice", "$price"] } } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+      const aggregateOrders = async (dateFilter) => {
+        const match = { status: { $ne: "cancelled" } };
+        if (dateFilter) match.createdAt = dateFilter;
+        const result = await Order.aggregate([
+          { $match: match },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+
+      earnings.daily = await aggregateBookings({ $gte: startOfDay }) + await aggregateOrders({ $gte: startOfDay });
+      earnings.weekly = await aggregateBookings({ $gte: startOfWeek }) + await aggregateOrders({ $gte: startOfWeek });
+      earnings.monthly = await aggregateBookings({ $gte: startOfMonth }) + await aggregateOrders({ $gte: startOfMonth });
+      earnings.yearly = await aggregateBookings({ $gte: startOfYear }) + await aggregateOrders({ $gte: startOfYear });
+      earnings.total = await aggregateBookings(null) + await aggregateOrders(null);
+    }
+
+    res.json({ earnings });
+  } catch (error) {
+    console.error("Get earnings breakdown error:", error);
+    res.status(500).json({ message: "Failed to fetch earnings breakdown", error: error.message });
+  }
+};
+
+// Get earnings breakdown for a specific user (admin only)
+exports.getUserEarningsBreakdown = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const mongoose = require("mongoose");
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(now);
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    let earnings = { daily: 0, weekly: 0, monthly: 0, yearly: 0, total: 0 };
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    if (user.role === "customer") {
+      const aggregateOrders = async (dateFilter) => {
+        const match = { customer: userObjectId, status: "delivered" };
+        if (dateFilter) match.createdAt = dateFilter;
+        const result = await Order.aggregate([
+          { $match: match },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+      const aggregateBookings = async (dateFilter) => {
+        const match = { customer: userObjectId, status: "completed" };
+        if (dateFilter) match.completedAt = dateFilter;
+        const result = await Booking.aggregate([
+          { $match: match },
+          { $group: { _id: null, total: { $sum: { $ifNull: ["$finalPrice", "$price"] } } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+
+      earnings.daily = await aggregateOrders({ $gte: startOfDay }) + await aggregateBookings({ $gte: startOfDay });
+      earnings.weekly = await aggregateOrders({ $gte: startOfWeek }) + await aggregateBookings({ $gte: startOfWeek });
+      earnings.monthly = await aggregateOrders({ $gte: startOfMonth }) + await aggregateBookings({ $gte: startOfMonth });
+      earnings.yearly = await aggregateOrders({ $gte: startOfYear }) + await aggregateBookings({ $gte: startOfYear });
+      earnings.total = await aggregateOrders(null) + await aggregateBookings(null);
+
+    } else if (user.role === "worker") {
+      const worker = await Worker.findOne({ user: userId });
+      if (!worker) return res.json({ earnings });
+
+      const aggregate = async (dateFilter) => {
+        const match = { worker: worker._id, status: "completed" };
+        if (dateFilter) match.completedAt = dateFilter;
+        const result = await Booking.aggregate([
+          { $match: match },
+          { $group: { _id: null, total: { $sum: { $ifNull: ["$finalPrice", "$price"] } } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+
+      earnings.daily = await aggregate({ $gte: startOfDay });
+      earnings.weekly = await aggregate({ $gte: startOfWeek });
+      earnings.monthly = await aggregate({ $gte: startOfMonth });
+      earnings.yearly = await aggregate({ $gte: startOfYear });
+      earnings.total = await aggregate(null);
+
+    } else if (user.role === "seller") {
+      const seller = await Seller.findOne({ user: userId });
+      if (!seller) return res.json({ earnings });
+
+      const aggregate = async (dateFilter) => {
+        const match = { "items.seller": seller._id, status: { $ne: "cancelled" } };
+        if (dateFilter) match.createdAt = dateFilter;
+        const result = await Order.aggregate([
+          { $unwind: "$items" },
+          { $match: match },
+          { $group: { _id: null, total: { $sum: { $multiply: ["$items.price", "$items.quantity"] } } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+
+      earnings.daily = await aggregate({ $gte: startOfDay });
+      earnings.weekly = await aggregate({ $gte: startOfWeek });
+      earnings.monthly = await aggregate({ $gte: startOfMonth });
+      earnings.yearly = await aggregate({ $gte: startOfYear });
+      earnings.total = await aggregate(null);
+
+    } else if (user.role === "delivery") {
+      const DeliveryAssignment = require("../models/DeliveryAssignment");
+
+      const aggregate = async (dateFilter) => {
+        const match = { deliveryPerson: userObjectId, status: "delivered" };
+        if (dateFilter) match.deliveredAt = dateFilter;
+        const result = await DeliveryAssignment.aggregate([
+          { $match: match },
+          { $lookup: { from: "orders", localField: "order", foreignField: "_id", as: "orderData" } },
+          { $unwind: "$orderData" },
+          { $group: { _id: null, total: { $sum: "$orderData.deliveryFee" } } }
+        ]);
+        return result[0]?.total || 0;
+      };
+
+      earnings.daily = await aggregate({ $gte: startOfDay });
+      earnings.weekly = await aggregate({ $gte: startOfWeek });
+      earnings.monthly = await aggregate({ $gte: startOfMonth });
+      earnings.yearly = await aggregate({ $gte: startOfYear });
+      earnings.total = await aggregate(null);
+    }
+
+    res.json({ earnings, role: user.role, name: user.name });
+  } catch (error) {
+    console.error("Get user earnings breakdown error:", error);
+    res.status(500).json({ message: "Failed to fetch user earnings breakdown", error: error.message });
   }
 };
 

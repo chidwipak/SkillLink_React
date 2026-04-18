@@ -62,4 +62,10 @@ router.get("/delivery/stats", authorize("delivery"), dashboardController.getDeli
 // Admin dashboard stats
 router.get("/admin/stats", authorize("admin"), dashboardController.getAdminStats)
 
+// Earnings breakdown (for logged-in user: worker/seller/delivery/admin)
+router.get("/earnings/breakdown", authenticateToken, dashboardController.getEarningsBreakdown)
+
+// Admin: get earnings breakdown for any user
+router.get("/admin/users/:userId/earnings", authorize("admin"), dashboardController.getUserEarningsBreakdown)
+
 module.exports = router

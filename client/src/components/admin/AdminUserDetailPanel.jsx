@@ -5,6 +5,86 @@ import LoadingSpinner from '../common/LoadingSpinner'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
+// Inline Earnings Breakdown for Admin User Detail Panel
+const UserEarningsBreakdown = ({ userId }) => {
+  const [earnings, setEarnings] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!userId) return
+    setLoading(true)
+    api.get(`/dashboard/admin/users/${userId}/earnings`)
+      .then(res => setEarnings(res.data.earnings))
+      .catch(() => setEarnings(null))
+      .finally(() => setLoading(false))
+  }, [userId])
+
+  if (loading) return <div style={{ textAlign: 'center', padding: '16px' }}><span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Loading earnings...</span></div>
+  if (!earnings) return null
+
+  const periods = [
+    { key: 'daily', label: 'Today', icon: 'fa-sun', color: '#10b981', bg: '#ecfdf5' },
+    { key: 'weekly', label: 'This Week', icon: 'fa-calendar-week', color: '#6366f1', bg: '#eef2ff' },
+    { key: 'monthly', label: 'This Month', icon: 'fa-calendar-alt', color: '#0ea5e9', bg: '#e0f2fe' },
+    { key: 'yearly', label: 'This Year', icon: 'fa-calendar', color: '#f59e0b', bg: '#fefce8' },
+  ]
+
+  const pieData = [
+    { label: "Today's", value: earnings.daily, color: '#10b981' },
+    { label: 'This Week', value: Math.max(0, earnings.weekly - earnings.daily), color: '#6366f1' },
+    { label: 'This Month', value: Math.max(0, earnings.monthly - earnings.weekly), color: '#0ea5e9' },
+    { label: 'This Year', value: Math.max(0, earnings.yearly - earnings.monthly), color: '#f59e0b' },
+  ].filter(i => i.value > 0)
+
+  return (
+    <div className="sk-card" style={{ margin: '0 0 16px' }}>
+      <div className="sk-card-header">
+        <h4 className="sk-card-title" style={{ fontSize: '0.85rem' }}>
+          <i className="fas fa-chart-pie"></i> Earnings Breakdown
+        </h4>
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669' }}>₹{(earnings.total || 0).toLocaleString()} total</span>
+      </div>
+      <div className="sk-card-body" style={{ padding: '12px' }}>
+        {/* 4 mini cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '12px' }}>
+          {periods.map(p => (
+            <div key={p.key} style={{
+              padding: '10px', borderRadius: '10px', background: p.bg,
+              border: `1px solid ${p.color}20`, textAlign: 'center'
+            }}>
+              <i className={`fas ${p.icon}`} style={{ color: p.color, fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}></i>
+              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>₹{(earnings[p.key] || 0).toLocaleString()}</div>
+              <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>{p.label}</div>
+            </div>
+          ))}
+        </div>
+        {/* Mini pie chart */}
+        {pieData.length > 0 && (
+          <div style={{ textAlign: 'center' }}>
+            <PieChart data={pieData} size={130} innerRadius={0.6} showLegend={true} />
+          </div>
+        )}
+        {/* Data rows */}
+        <div style={{ marginTop: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+          {periods.map(p => (
+            <div key={p.key} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '0.78rem' }}>
+              <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: p.color, display: 'inline-block' }}></span>
+                {p.label}
+              </span>
+              <span style={{ fontWeight: 700, color: '#0f172a' }}>₹{(earnings[p.key] || 0).toLocaleString()}</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', borderTop: '1px solid #e2e8f0', marginTop: '4px', fontSize: '0.8rem' }}>
+            <span style={{ fontWeight: 700, color: '#0f172a' }}>All Time Total</span>
+            <span style={{ fontWeight: 800, color: '#059669' }}>₹{(earnings.total || 0).toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const AdminUserDetailPanel = ({ userId, onClose }) => {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -93,6 +173,9 @@ const AdminUserDetailPanel = ({ userId, onClose }) => {
             </div>
           </div>
         </div>
+
+        {/* Earnings/Spending Breakdown - Daily/Weekly/Monthly/Yearly */}
+        <UserEarningsBreakdown userId={userId} />
 
         {/* Spending breakdown */}
         <div className="sk-card" style={{ margin: '0 0 16px' }}>
@@ -218,6 +301,9 @@ const AdminUserDetailPanel = ({ userId, onClose }) => {
           </div>
         </div>
 
+        {/* Earnings Breakdown - Daily/Weekly/Monthly/Yearly */}
+        <UserEarningsBreakdown userId={userId} />
+
         {/* Skills */}
         {rd.skills?.length > 0 && (
           <div className="sk-card" style={{ margin: '0 0 16px' }}>
@@ -338,10 +424,13 @@ const AdminUserDetailPanel = ({ userId, onClose }) => {
           </div>
         </div>
 
-        {/* Top Products */}
+        {/* Revenue Breakdown - Daily/Weekly/Monthly/Yearly */}
+        <UserEarningsBreakdown userId={userId} />
+
+        {/* Top Selling Products */}
         {s.topProducts?.length > 0 && (
           <div className="sk-card" style={{ margin: '0 0 16px' }}>
-            <div className="sk-card-header"><h4 className="sk-card-title" style={{ fontSize: '0.85rem' }}><i className="fas fa-trophy"></i> Top Products</h4></div>
+            <div className="sk-card-header"><h4 className="sk-card-title" style={{ fontSize: '0.85rem' }}><i className="fas fa-trophy"></i> Top Selling Products</h4></div>
             <div className="sk-card-body no-padding">
               <div className="sk-activity-list">
                 {s.topProducts.map((p, i) => (
@@ -349,10 +438,12 @@ const AdminUserDetailPanel = ({ userId, onClose }) => {
                     <div style={{
                       width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                       background: i === 0 ? '#fef3c7' : '#f1f5f9', color: i === 0 ? '#d97706' : '#64748b', fontSize: '0.75rem', fontWeight: 700
-                    }}>{i + 1}</div>
+                    }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</div>
                     <div className="sk-activity-content" style={{ flex: 1 }}>
                       <p className="sk-activity-title" style={{ fontSize: '0.8rem' }}>{p.name}</p>
-                      <p className="sk-activity-meta" style={{ fontSize: '0.7rem' }}>₹{p.price || 0} • Rating: {(p.rating || 0).toFixed(1)}</p>
+                      <p className="sk-activity-meta" style={{ fontSize: '0.7rem' }}>
+                        {p.unitsSold ? `${p.unitsSold} sold` : `₹${p.price || 0}`} • ₹{(p.revenue || 0).toLocaleString()} revenue • ⭐ {(p.rating || 0).toFixed(1)}
+                      </p>
                     </div>
                     <span className={`sk-badge ${p.inStock ? 'sk-badge-success' : 'sk-badge-danger'}`} style={{ fontSize: '0.65rem' }}>
                       {p.inStock ? 'In Stock' : 'Out of Stock'}
@@ -436,6 +527,9 @@ const AdminUserDetailPanel = ({ userId, onClose }) => {
             {deliveryData.length > 0 ? <PieChart data={deliveryData} size={140} innerRadius={0.6} showLegend /> : <p style={{ color: '#94a3b8', fontSize: '0.8rem' }}>No deliveries yet</p>}
           </div>
         </div>
+
+        {/* Earnings Breakdown - Daily/Weekly/Monthly/Yearly */}
+        <UserEarningsBreakdown userId={userId} />
 
         {/* Completion Rate */}
         <div className="sk-card" style={{ margin: 0 }}>

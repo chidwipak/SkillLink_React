@@ -5,6 +5,7 @@ import api from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import ImageWithFallback from '../../components/common/ImageWithFallback'
 import PieChart from '../../components/ui/PieChart'
+import EarningsOverview from '../../components/ui/EarningsOverview'
 import { ProgressRing, HorizontalBar, SummaryRow, SparkBars } from '../../components/ui/AnalyticsWidgets'
 
 const WorkerDashboard = () => {
@@ -237,6 +238,13 @@ const WorkerDashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Earnings Breakdown - Daily/Weekly/Monthly/Yearly */}
+        <EarningsOverview
+          apiUrl="/dashboard/earnings/breakdown"
+          title="Earnings Breakdown"
+          currencyLabel="Earnings"
+        />
 
         {/* Customer Feedback Section */}
         <div className="sk-analytics-card sk-animate">

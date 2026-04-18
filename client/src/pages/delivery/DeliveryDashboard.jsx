@@ -6,6 +6,7 @@ import { useCelebration } from '../../contexts/CelebrationContext'
 import toast from 'react-hot-toast'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import PieChart from '../../components/ui/PieChart'
+import EarningsOverview from '../../components/ui/EarningsOverview'
 import { ProgressRing, HorizontalBar, SummaryRow, SparkBars } from '../../components/ui/AnalyticsWidgets'
 
 const DeliveryDashboard = () => {
@@ -211,6 +212,13 @@ const DeliveryDashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Earnings Breakdown - Daily/Weekly/Monthly/Yearly */}
+        <EarningsOverview
+          apiUrl="/dashboard/earnings/breakdown"
+          title="Earnings Breakdown"
+          currencyLabel="Earnings"
+        />
 
         {/* Active Delivery - OTP Verification */}
         {activeDelivery && (

@@ -7,6 +7,7 @@ import ImageWithFallback from '../../components/common/ImageWithFallback'
 import toast from 'react-hot-toast'
 import { updateUser } from '../../store/slices/authSlice'
 import PieChart from '../../components/ui/PieChart'
+import EarningsOverview from '../../components/ui/EarningsOverview'
 import { ProgressRing, HorizontalBar, SummaryRow, SparkBars } from '../../components/ui/AnalyticsWidgets'
 
 /* ─── Address Modal ─── */
@@ -85,6 +86,7 @@ const SellerDashboard = () => {
   const [error, setError] = useState(null)
   const [showAddressModal, setShowAddressModal] = useState(false)
   const [addressLoading, setAddressLoading] = useState(false)
+  const [bestSellingTab, setBestSellingTab] = useState('overall')
   const fetchedRef = useRef(false)
 
   useEffect(() => {
@@ -175,7 +177,7 @@ const SellerDashboard = () => {
   }
 
   // Determine highest earning product from recent orders or top products
-  const topProduct = stats?.topProducts?.[0] || stats?.products?.topSelling?.[0] || null
+  const currentBestSelling = stats?.topProducts?.[bestSellingTab] || []
 
   const fulfillmentRate = totalOrders > 0 ? Math.round(((stats?.orders?.delivered || 0) / totalOrders) * 100) : 0
 
@@ -324,47 +326,123 @@ const SellerDashboard = () => {
           </div>
         </div>
 
-        {/* Top Performer + Shop Info */}
+        {/* Revenue Breakdown - Daily/Weekly/Monthly/Yearly */}
+        <EarningsOverview
+          apiUrl="/dashboard/earnings/breakdown"
+          title="Revenue Breakdown"
+          currencyLabel="Revenue"
+        />
+
+        {/* Best Selling Products */}
+        <div className="sk-analytics-card sk-animate">
+          <div className="sk-analytics-header">
+            <h3><i className="fas fa-trophy"></i> Best Selling Products</h3>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', padding: '0 20px 12px', flexWrap: 'wrap' }}>
+            {[
+              { key: 'overall', label: 'All Time', icon: 'fa-infinity' },
+              { key: 'weekly', label: 'This Week', icon: 'fa-calendar-week' },
+              { key: 'monthly', label: 'This Month', icon: 'fa-calendar-alt' },
+              { key: 'yearly', label: 'This Year', icon: 'fa-calendar' },
+            ].map(tab => (
+              <button key={tab.key} onClick={() => setBestSellingTab(tab.key)}
+                style={{
+                  padding: '6px 14px', borderRadius: '20px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.2s',
+                  background: bestSellingTab === tab.key ? '#6366f1' : '#f1f5f9',
+                  color: bestSellingTab === tab.key ? '#fff' : '#64748b',
+                }}>
+                <i className={`fas ${tab.icon}`} style={{ marginRight: '6px' }}></i>{tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="sk-analytics-body" style={{ padding: 0 }}>
+            {currentBestSelling.length > 0 ? (
+              <table className="sk-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Product</th>
+                    <th>Units Sold</th>
+                    <th>Revenue</th>
+                    <th>Rating</th>
+                    <th>Stock</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentBestSelling.map((p, i) => (
+                    <tr key={p._id}>
+                      <td>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '26px', height: '26px', borderRadius: '50%', fontSize: '0.75rem', fontWeight: 700,
+                          background: i === 0 ? '#fef3c7' : i === 1 ? '#f1f5f9' : i === 2 ? '#fff7ed' : '#f8fafc',
+                          color: i === 0 ? '#d97706' : i === 1 ? '#64748b' : i === 2 ? '#ea580c' : '#94a3b8'
+                        }}>
+                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                        </span>
+                      </td>
+                      <td className="sk-table-primary" style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.name}
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 700, color: '#6366f1' }}>{p.unitsSold}</span>
+                        <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: '4px' }}>
+                          ({p.orderCount} order{p.orderCount !== 1 ? 's' : ''})
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#059669' }}>₹{(p.revenue || 0).toLocaleString()}</td>
+                      <td>
+                        <span style={{ color: '#f59e0b' }}>⭐ {(p.rating || 0).toFixed(1)}</span>
+                        <span style={{ color: '#94a3b8', fontSize: '0.7rem', marginLeft: '4px' }}>({p.reviewCount || 0})</span>
+                      </td>
+                      <td>
+                        <span className={`sk-badge ${p.stock > 0 ? 'sk-badge-success' : 'sk-badge-danger'}`}
+                          style={{ fontSize: '0.7rem' }}>
+                          {p.stock > 0 ? `${p.stock} left` : 'Out of stock'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="sk-empty" style={{ padding: '32px' }}>
+                <div className="sk-empty-icon">📦</div>
+                <h4 className="sk-empty-title">No sales data for this period</h4>
+                <p className="sk-empty-text">Sales data will appear here when customers order your products</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Shop Info + Stock Summary */}
         <div className="sk-row sk-row-2">
           <div className="sk-analytics-card sk-animate">
             <div className="sk-analytics-header">
-              <h3><i className="fas fa-trophy"></i> Top Performer</h3>
+              <h3><i className="fas fa-box-open"></i> Stock Summary</h3>
             </div>
             <div className="sk-analytics-body">
-              {topProduct ? (
-                <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                  <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: 'linear-gradient(135deg, #fef3c7, #fde68a)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: '1.75rem' }}>🏆</div>
-                  <h4 style={{ fontWeight: 700, marginBottom: '4px', color: '#1e293b' }}>{topProduct.name}</h4>
-                  <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '12px' }}>Highest Earning Product</p>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
-                    <div style={{ padding: '8px 16px', background: '#f0fdf4', borderRadius: '8px' }}>
-                      <div style={{ fontWeight: 700, color: '#10b981' }}>₹{topProduct.price?.toLocaleString()}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Price</div>
-                    </div>
-                    <div style={{ padding: '8px 16px', background: '#fef3c7', borderRadius: '8px' }}>
-                      <div style={{ fontWeight: 700, color: '#d97706' }}>⭐ {topProduct.rating?.toFixed(1) || 'N/A'}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Rating</div>
-                    </div>
-                  </div>
+              <div className="sk-perf-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                <div className="sk-perf-item">
+                  <div className="sk-perf-value" style={{ color: '#6366f1' }}>{stats?.products?.total || 0}</div>
+                  <div className="sk-perf-label">Total Products</div>
                 </div>
-              ) : (
-                <div className="sk-perf-grid">
-                  <div className="sk-perf-item">
-                    <div className="sk-perf-value" style={{ color: '#10b981' }}>{stats?.orders?.delivered || 0}</div>
-                    <div className="sk-perf-label">Delivered</div>
-                  </div>
-                  <div className="sk-perf-item">
-                    <div className="sk-perf-value" style={{ color: '#6366f1' }}>{stats?.seller?.rating?.toFixed(1) || 'N/A'}</div>
-                    <div className="sk-perf-label">Rating</div>
-                  </div>
-                  <div className="sk-perf-item">
-                    <div className="sk-perf-value" style={{ color: '#f59e0b' }}>{stats?.products?.total || 0}</div>
-                    <div className="sk-perf-label">Products</div>
-                  </div>
-                  <div className="sk-perf-item">
-                    <div className="sk-perf-value" style={{ color: '#0ea5e9' }}>{fulfillmentRate}%</div>
-                    <div className="sk-perf-label">Success</div>
-                  </div>
+                <div className="sk-perf-item">
+                  <div className="sk-perf-value" style={{ color: '#10b981' }}>{stats?.products?.active || 0}</div>
+                  <div className="sk-perf-label">In Stock</div>
+                </div>
+                <div className="sk-perf-item">
+                  <div className="sk-perf-value" style={{ color: '#ef4444' }}>{stats?.products?.outOfStock || 0}</div>
+                  <div className="sk-perf-label">Out of Stock</div>
+                </div>
+              </div>
+              {(stats?.products?.outOfStock || 0) > 0 && (
+                <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#dc2626', margin: 0 }}>
+                    <i className="fas fa-exclamation-circle" style={{ marginRight: '6px' }}></i>
+                    {stats.products.outOfStock} product(s) are out of stock. Restock soon to avoid missed sales!
+                  </p>
                 </div>
               )}
             </div>
