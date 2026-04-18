@@ -8,7 +8,18 @@
     "server": "node app.js",
     "client": "cd client && npm run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "test": "jest --forceExit --detectOpenHandles",
+    "test:watch": "jest --watch --forceExit --detectOpenHandles",
+    "test:coverage": "jest --coverage --forceExit --detectOpenHandles",
+    "test:report": "jest --coverage --forceExit --detectOpenHandles --json --outputFile=test-results/report.json"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"],
+    "coverageDirectory": "coverage",
+    "coveragePathIgnorePatterns": ["/node_modules/", "/client/", "/public/"],
+    "testTimeout": 30000
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -16,6 +27,7 @@
     "connect-flash": "^0.1.1",
     "connect-mongo": "^5.1.0",
     "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
     "dotenv": "^16.5.0",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
@@ -23,16 +35,23 @@
     "express-session": "^1.17.3",
     "express-validator": "^7.3.1",
     "helmet": "^8.1.0",
+    "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.2",
     "method-override": "^3.0.0",
     "moment": "^2.29.4",
     "mongoose": "^7.5.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^7.0.11",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "@jest/globals": "^29.7.0",
     "concurrently": "^9.2.1",
-    "nodemon": "^3.0.1"
+    "jest": "^29.7.0",
+    "mongodb-memory-server": "^11.0.1",
+    "nodemon": "^3.0.1",
+    "supertest": "^7.2.2"
   }
 }
