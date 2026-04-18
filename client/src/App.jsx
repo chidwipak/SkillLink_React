@@ -1,8 +1,11 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { getProfile } from './store/slices/authSlice'
 import socketService from './services/socket'
+import ScrollProgress from './components/common/ScrollProgress'
+import WelcomeSplash from './components/ui/WelcomeSplash'
+import { CelebrationProvider } from './contexts/CelebrationContext'
 
 // Layouts
 import MainLayout from './layouts/MainLayout'
@@ -15,6 +18,7 @@ import ServiceDetails from './pages/ServiceDetails'
 import Shop from './pages/Shop'
 import ProductDetail from './pages/ProductDetail'
 import Checkout from './pages/Checkout'
+import PaymentGateway from './pages/PaymentGateway'
 
 // Auth Pages
 import Login from './pages/auth/Login'
@@ -60,6 +64,9 @@ import AdminUsers from './pages/admin/AdminUsers'
 import AdminServices from './pages/admin/AdminServices'
 import AdminAnalytics from './pages/admin/AdminAnalytics'
 
+// Verifier Pages
+import VerifierDashboard from './pages/verifier/VerifierDashboard'
+
 // Common Pages
 import Profile from './pages/Profile'
 import Notifications from './pages/Notifications'
@@ -85,6 +92,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
       seller: '/dashboard/seller',
       delivery: '/dashboard/delivery',
       admin: '/dashboard/admin',
+      verifier: '/dashboard/verifier',
     }
     return <Navigate to={dashboardRoutes[user?.role] || '/'} replace />
   }
@@ -102,14 +110,39 @@ const DashboardRedirect = () => {
     seller: '/dashboard/seller',
     delivery: '/dashboard/delivery',
     admin: '/dashboard/admin',
+    verifier: '/dashboard/verifier',
   }
 
   return <Navigate to={dashboardRoutes[user?.role] || '/'} replace />
 }
 
+// Redirect authenticated non-customer users to their dashboard
+const RedirectAuthenticatedUser = ({ children }) => {
+  const { user, isAuthenticated } = useSelector((state) => state.auth)
+  const dashboardRoutes = {
+    worker: '/dashboard/worker',
+    seller: '/dashboard/seller',
+    admin: '/dashboard/admin',
+    delivery: '/dashboard/delivery',
+    verifier: '/dashboard/verifier',
+  }
+  if (
+    isAuthenticated &&
+    ["worker", "seller", "admin", "delivery", "verifier"].includes(user?.role)
+  ) {
+    return <Navigate to={dashboardRoutes[user.role]} replace />
+  }
+  return children
+}
+
 function App() {
   const dispatch = useDispatch()
   const { isAuthenticated } = useSelector((state) => state.auth)
+
+  // Welcome splash — show once per browser session
+  const [showSplash, setShowSplash] = useState(() => {
+    return !sessionStorage.getItem('skilllink_welcomed')
+  })
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -125,32 +158,25 @@ function App() {
     }
   }, [isAuthenticated])
 
-  // Redirect logic for authenticated users
-  const RedirectAuthenticatedUser = ({ children }) => {
-    const { user, isAuthenticated } = useSelector((state) => state.auth)
-    
-    if (isAuthenticated && (user?.role === 'worker' || user?.role === 'seller' || user?.role === 'admin')) {
-      const dashboardRoutes = {
-        worker: '/dashboard/worker',
-        seller: '/dashboard/seller',
-        admin: '/dashboard/admin',
-      }
-      return <Navigate to={dashboardRoutes[user.role]} replace />
-    }
-    
-    return children
+  const handleSplashComplete = () => {
+    sessionStorage.setItem('skilllink_welcomed', '1')
+    setShowSplash(false)
   }
 
   return (
-    <Routes>
-      {/* Public Routes - Only accessible by customers and non-authenticated users */}
-      <Route element={<MainLayout />}>
+    <CelebrationProvider>
+      {showSplash && <WelcomeSplash onComplete={handleSplashComplete} />}
+      <ScrollProgress />
+      <Routes>
+        {/* Public Routes - Only accessible by customers and non-authenticated users */}
+        <Route element={<MainLayout />}>
         <Route path="/" element={<RedirectAuthenticatedUser><Home /></RedirectAuthenticatedUser>} />
         <Route path="/services" element={<RedirectAuthenticatedUser><Services /></RedirectAuthenticatedUser>} />
         <Route path="/services/:id" element={<RedirectAuthenticatedUser><ServiceDetails /></RedirectAuthenticatedUser>} />
         <Route path="/shop" element={<RedirectAuthenticatedUser><Shop /></RedirectAuthenticatedUser>} />
         <Route path="/product/:productName" element={<RedirectAuthenticatedUser><ProductDetail /></RedirectAuthenticatedUser>} />
         <Route path="/checkout" element={<ProtectedRoute allowedRoles={['customer']}><Checkout /></ProtectedRoute>} />
+        <Route path="/payment" element={<ProtectedRoute allowedRoles={['customer']}><PaymentGateway /></ProtectedRoute>} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
@@ -184,6 +210,7 @@ function App() {
         <Route path="orders/:id" element={<OrderDetails />} />
         <Route path="track/:id" element={<TrackOrder />} />
         <Route path="profile" element={<CustomerProfile />} />
+        <Route path="notifications" element={<Notifications />} />
       </Route>
 
       {/* Worker Dashboard */}
@@ -200,6 +227,7 @@ function App() {
         <Route path="availability" element={<WorkerAvailability />} />
         <Route path="earnings" element={<WorkerEarnings />} />
         <Route path="profile" element={<WorkerProfile />} />
+        <Route path="notifications" element={<Notifications />} />
       </Route>
 
       {/* Seller Dashboard */}
@@ -216,6 +244,7 @@ function App() {
         <Route path="orders" element={<SellerOrders />} />
         <Route path="shop" element={<SellerShop />} />
         <Route path="profile" element={<SellerProfile />} />
+        <Route path="notifications" element={<Notifications />} />
       </Route>
 
       {/* Delivery Dashboard */}
@@ -232,6 +261,7 @@ function App() {
         <Route path="assignments" element={<DeliveryAssignments />} />
         <Route path="tracking" element={<DeliveryTracking />} />
         <Route path="profile" element={<DeliveryProfile />} />
+        <Route path="notifications" element={<Notifications />} />
       </Route>
 
       {/* Admin Dashboard */}
@@ -251,6 +281,20 @@ function App() {
         <Route path="profile" element={<Profile />} />
       </Route>
 
+      {/* Verifier Dashboard */}
+      <Route
+        path="/dashboard/verifier"
+        element={
+          <ProtectedRoute allowedRoles={['verifier']}>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<VerifierDashboard />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="notifications" element={<Notifications />} />
+      </Route>
+
       {/* Common Protected Routes */}
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
@@ -258,6 +302,7 @@ function App() {
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </CelebrationProvider>
   )
 }
 
