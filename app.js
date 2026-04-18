@@ -79,7 +79,6 @@ mongoose
   })
   .catch((err) => {
     console.error("Could not connect to MongoDB:", err)
-    process.exit(1)
   })
 
 // Handle MongoDB connection errors after initial connection
