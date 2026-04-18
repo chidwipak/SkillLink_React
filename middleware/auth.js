@@ -56,3 +56,11 @@ exports.isAdminOrWorker = (req, res, next) => {
   req.flash("error", "Access denied. Admin or Worker privileges required")
   res.redirect("/")
 }
+
+exports.isVerifier = (req, res, next) => {
+  if (req.session.user && req.session.user.role === "verifier") {
+    return next()
+  }
+  req.flash("error", "Access denied. Verifier privileges required")
+  res.redirect("/")
+}
