@@ -90,6 +90,7 @@ exports.createOrder = async (req, res) => {
       subtotal,
       deliveryFee,
       platformFee,
+      paymentStatus: req.body.paymentStatus === 'completed' ? 'completed' : 'pending',
       status: "pending",
       trackingUpdates: [
         {
@@ -452,6 +453,154 @@ exports.trackOrder = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to track order",
+    })
+  }
+}
+
+// Verify pickup OTP and hand over to delivery (for sellers)
+exports.verifyPickupOTP = async (req, res) => {
+  try {
+    const { orderId, otp } = req.body
+
+    // Get seller from user ID
+    const seller = await Seller.findOne({ user: req.user.userId })
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller profile not found",
+      })
+    }
+    const sellerId = seller._id
+
+    const order = await Order.findById(orderId)
+      .populate("customer", "name")
+      .populate("deliveryPerson")
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    // Find items belonging to this seller
+    const sellerItems = order.items.filter(
+      item => item.seller?.toString() === sellerId?.toString()
+    )
+
+    if (sellerItems.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: "No items from your store in this order",
+      })
+    }
+
+    // Check if any item matches the OTP
+    let verifiedItem = null
+    for (const item of sellerItems) {
+      if (item.pickupOTP === otp && !item.pickupOTPVerified) {
+        item.pickupOTPVerified = true
+        item.handedToDelivery = true
+        item.handedAt = new Date()
+        item.status = "shipped"
+        verifiedItem = item
+        break
+      }
+    }
+
+    if (!verifiedItem) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP or already verified",
+      })
+    }
+
+    // Check if all items from all sellers have been handed over
+    const allItemsHandedOver = order.items.every(item => item.handedToDelivery)
+    
+    if (allItemsHandedOver) {
+      order.status = "out_for_delivery"
+      order.isHandedToDelivery = true
+      order.handedToDeliveryAt = new Date()
+      order.trackingUpdates.push({
+        status: "out_for_delivery",
+        message: "All items collected. Package is out for delivery.",
+        timestamp: new Date(),
+      })
+    } else {
+      order.trackingUpdates.push({
+        status: "partial_pickup",
+        message: "Some items collected from seller. Waiting for remaining pickups.",
+        timestamp: new Date(),
+      })
+    }
+
+    await order.save()
+
+    res.json({
+      success: true,
+      message: allItemsHandedOver 
+        ? "All items handed over. Order is out for delivery!" 
+        : "Item handed over successfully. Waiting for other sellers.",
+      allItemsReady: allItemsHandedOver,
+    })
+  } catch (error) {
+    console.error("Verify pickup OTP error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to verify pickup OTP",
+    })
+  }
+}
+
+// Get pickup OTPs for seller's items (seller view)
+exports.getPickupOTPs = async (req, res) => {
+  try {
+    const orderId = req.params.orderId
+
+    // Get seller from user ID
+    const seller = await Seller.findOne({ user: req.user.userId })
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller profile not found",
+      })
+    }
+    const sellerId = seller._id
+
+    const order = await Order.findById(orderId)
+      .populate("items.product", "name")
+      .populate("deliveryPerson")
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    // Find items belonging to this seller
+    const sellerItems = order.items
+      .filter(item => item.seller?.toString() === sellerId?.toString())
+      .map(item => ({
+        product: item.product?.name,
+        quantity: item.quantity,
+        pickupOTP: item.pickupOTP,
+        handedToDelivery: item.handedToDelivery,
+        handedAt: item.handedAt,
+      }))
+
+    res.json({
+      success: true,
+      items: sellerItems,
+      orderStatus: order.status,
+      deliveryAssigned: !!order.deliveryPerson,
+    })
+  } catch (error) {
+    console.error("Get pickup OTPs error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to get pickup OTPs",
     })
   }
 }

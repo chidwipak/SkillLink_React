@@ -49,13 +49,15 @@ exports.getServiceById = async (req, res) => {
       return res.status(404).json({ success: false, message: "Service not found" })
     }
 
-    // Get available workers for this service
+    // Get all workers for this service (both available and unavailable)
+    // Customers can see unavailable workers but cannot book them
     const workers = await Worker.find({
       serviceCategory: service.category,
-      isAvailable: true,
+      isVerified: true,
     })
       .populate("user", "name email phone profilePicture isVerified")
-      .limit(10)
+      .sort({ isAvailable: -1, rating: -1 }) // Available workers first, then by rating
+      .limit(20)
 
     res.json({
       success: true,

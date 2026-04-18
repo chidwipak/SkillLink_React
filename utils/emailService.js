@@ -1,25 +1,41 @@
 const nodemailer = require('nodemailer');
 
-// Create email transporter
-const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE || 'gmail',
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: process.env.EMAIL_PORT || 587,
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  }
-});
+// Check if email credentials are configured
+const emailConfigured = process.env.EMAIL_USER && process.env.EMAIL_PASSWORD;
 
-// Verify connection configuration
-transporter.verify(function (error, success) {
-  if (error) {
-    console.log('❌ Email transporter error:', error);
-  } else {
-    console.log('✅ Email server is ready to send messages');
+// Create email transporter only if credentials exist
+let transporter = null;
+
+if (emailConfigured) {
+  // Configuration for email transporter
+  const transportConfig = {
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.EMAIL_PORT) || 587,
+    secure: false, // true for 465, false for other ports
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD
+    }
+  };
+
+  // Only add service if it's gmail
+  if (process.env.EMAIL_SERVICE === 'gmail') {
+    transportConfig.service = 'gmail';
   }
-});
+
+  transporter = nodemailer.createTransport(transportConfig);
+
+  // Verify connection configuration
+  transporter.verify(function (error, success) {
+    if (error) {
+      console.log('❌ Email transporter error:', error.message);
+    } else {
+      console.log('✅ Email server is ready to send messages');
+    }
+  });
+} else {
+  console.log('ℹ️ Email service not configured (EMAIL_USER/EMAIL_PASSWORD missing). Email features disabled.');
+}
 
 // Send email verification OTP
 exports.sendVerificationEmail = async (email, name, otp) => {
@@ -76,6 +92,10 @@ exports.sendVerificationEmail = async (email, name, otp) => {
   };
 
   try {
+    if (!transporter) {
+      console.log('ℹ️ Email not sent (service not configured). OTP:', otp);
+      return { success: true, messageId: 'email-disabled', note: 'Email service not configured' };
+    }
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Verification email sent successfully:', info.messageId);
     return { success: true, messageId: info.messageId };
@@ -141,11 +161,82 @@ exports.sendPasswordResetEmail = async (email, name, resetToken) => {
   };
 
   try {
+    if (!transporter) {
+      console.log('ℹ️ Password reset email not sent (service not configured). Reset URL:', resetUrl);
+      return { success: true, messageId: 'email-disabled', note: 'Email service not configured' };
+    }
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Password reset email sent successfully:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('❌ Error sending password reset email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Send rejection email when user registration is declined
+exports.sendRejectionEmail = async (email, name, feedback) => {
+  const mailOptions = {
+    from: `"SkillLink" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
+    to: email,
+    subject: 'Registration Update - SkillLink',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .feedback-box { background: white; border-left: 4px solid #ef4444; padding: 15px 20px; margin: 20px 0; border-radius: 0 5px 5px 0; }
+          .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+          .info { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 15px; margin: 15px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">Registration Update</h1>
+          </div>
+          <div class="content">
+            <h2>Hello ${name},</h2>
+            <p>We regret to inform you that your registration on SkillLink has been reviewed and <strong>could not be approved</strong> at this time.</p>
+            
+            <div class="feedback-box">
+              <p style="margin: 0; font-size: 14px; color: #666; font-weight: bold;">Reason for Rejection:</p>
+              <p style="margin: 10px 0 0 0; color: #333;">${feedback}</p>
+            </div>
+            
+            <div class="info">
+              <strong>What can you do?</strong><br>
+              You may register again with updated and valid details. Make sure all required information is correctly provided.
+            </div>
+            
+            <p>If you believe this was a mistake, please contact our support team.</p>
+            
+            <p>Best regards,<br><strong>The SkillLink Team</strong></p>
+          </div>
+          <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} SkillLink. All rights reserved.</p>
+            <p>This is an automated email, please do not reply.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  };
+
+  try {
+    if (!transporter) {
+      console.log('ℹ️ Rejection email not sent (service not configured). Feedback:', feedback);
+      return { success: true, messageId: 'email-disabled', note: 'Email service not configured' };
+    }
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Rejection email sent successfully:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Error sending rejection email:', error);
     return { success: false, error: error.message };
   }
 };
@@ -217,6 +308,10 @@ exports.sendBookingNotificationEmail = async (email, name, bookingDetails) => {
   };
 
   try {
+    if (!transporter) {
+      console.log('ℹ️ Booking notification email not sent (service not configured)');
+      return { success: true, messageId: 'email-disabled', note: 'Email service not configured' };
+    }
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Booking notification email sent successfully:', info.messageId);
     return { success: true, messageId: info.messageId };

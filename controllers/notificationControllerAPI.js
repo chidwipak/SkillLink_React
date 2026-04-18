@@ -118,4 +118,23 @@ exports.getUnreadCount = async (req, res) => {
   }
 }
 
+// Delete all read notifications (cleanup on logout)
+exports.deleteReadNotifications = async (req, res) => {
+  try {
+    const result = await Notification.deleteMany({
+      user: req.user.userId,
+      isRead: true,
+    })
+
+    res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} read notifications`,
+      deletedCount: result.deletedCount,
+    })
+  } catch (error) {
+    console.error("Delete read notifications error:", error)
+    res.status(500).json({ success: false, message: "Failed to delete notifications" })
+  }
+}
+
 module.exports = exports

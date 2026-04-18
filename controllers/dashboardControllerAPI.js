@@ -40,7 +40,7 @@ exports.getDashboardStats = async (req, res) => {
       }
     } else if (role === "worker") {
       const worker = await Worker.findOne({ user: userId })
-      
+
       if (worker) {
         const pendingBookings = await Booking.countDocuments({
           worker: worker._id,
@@ -73,7 +73,7 @@ exports.getDashboardStats = async (req, res) => {
       }
     } else if (role === "seller") {
       const seller = await Seller.findOne({ user: userId })
-      
+
       if (seller) {
         const totalProducts = await require("../models/Product").countDocuments({
           seller: seller._id,
@@ -105,7 +105,7 @@ exports.getDashboardStats = async (req, res) => {
       }
     } else if (role === "delivery") {
       const DeliveryAssignment = require("../models/DeliveryAssignment")
-      
+
       const assignedDeliveries = await DeliveryAssignment.countDocuments({
         deliveryPerson: userId,
         status: { $in: ["assigned", "accepted"] },
@@ -129,7 +129,7 @@ exports.getDashboardStats = async (req, res) => {
       }
     } else if (role === "admin") {
       const totalUsers = await User.countDocuments()
-      
+
       const pendingVerifications = await User.countDocuments({
         role: { $in: ["worker", "seller", "delivery"] },
         isVerified: false,
@@ -173,7 +173,7 @@ exports.getCustomerStats = async (req, res) => {
     const totalBookings = await Booking.countDocuments({ customer: userId });
     const pendingBookings = await Booking.countDocuments({ customer: userId, status: "pending" });
     const completedBookings = await Booking.countDocuments({ customer: userId, status: "completed" });
-    
+
     // Get recent bookings
     const recentBookings = await Booking.find({ customer: userId })
       .populate("service", "name category")
@@ -183,9 +183,9 @@ exports.getCustomerStats = async (req, res) => {
 
     // Get orders stats
     const totalOrders = await Order.countDocuments({ customer: userId });
-    const pendingOrders = await Order.countDocuments({ 
-      customer: userId, 
-      status: { $in: ["pending", "processing"] } 
+    const pendingOrders = await Order.countDocuments({
+      customer: userId,
+      status: { $in: ["pending", "processing"] }
     });
     const deliveredOrders = await Order.countDocuments({ customer: userId, status: "delivered" });
 
@@ -239,7 +239,7 @@ exports.getCustomerStats = async (req, res) => {
 exports.getWorkerStats = async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     // Get worker profile
     const worker = await Worker.findOne({ user: userId });
     if (!worker) {
@@ -262,19 +262,19 @@ exports.getWorkerStats = async (req, res) => {
 
     // Calculate earnings using finalPrice (or price as fallback)
     const earningsData = await Booking.aggregate([
-      { 
-        $match: { 
-          worker: worker._id, 
+      {
+        $match: {
+          worker: worker._id,
           status: "completed"
-        } 
+        }
       },
       {
         $group: {
           _id: null,
-          total: { 
-            $sum: { 
-              $ifNull: ["$finalPrice", "$price"] 
-            } 
+          total: {
+            $sum: {
+              $ifNull: ["$finalPrice", "$price"]
+            }
           },
           count: { $sum: 1 }
         }
@@ -299,10 +299,10 @@ exports.getWorkerStats = async (req, res) => {
       {
         $group: {
           _id: null,
-          total: { 
-            $sum: { 
-              $ifNull: ["$finalPrice", "$price"] 
-            } 
+          total: {
+            $sum: {
+              $ifNull: ["$finalPrice", "$price"]
+            }
           }
         }
       }
@@ -336,10 +336,10 @@ exports.getWorkerStats = async (req, res) => {
       {
         $group: {
           _id: null,
-          total: { 
-            $sum: { 
-              $ifNull: ["$finalPrice", "$price"] 
-            } 
+          total: {
+            $sum: {
+              $ifNull: ["$finalPrice", "$price"]
+            }
           },
           count: { $sum: 1 }
         }
@@ -363,6 +363,26 @@ exports.getWorkerStats = async (req, res) => {
       isReviewed: true
     });
 
+    // Get customer feedback/reviews for this worker
+    const workerReviews = await Booking.find({
+      worker: worker._id,
+      isReviewed: true,
+      rating: { $exists: true }
+    })
+      .populate("customer", "name email")
+      .populate("service", "name category")
+      .select("customer service rating review createdAt completionTime")
+      .sort({ completionTime: -1, createdAt: -1 })
+      .limit(10);
+
+    const formattedReviews = workerReviews.map(b => ({
+      customer: b.customer,
+      service: b.service,
+      rating: b.rating,
+      comment: b.review,
+      date: b.completionTime || b.createdAt
+    }));
+
     res.json({
       worker: {
         id: worker._id,
@@ -385,6 +405,7 @@ exports.getWorkerStats = async (req, res) => {
         monthly: monthlyEarnings,
         completedJobs
       },
+      reviews: formattedReviews,
       chartData
     });
   } catch (error) {
@@ -397,7 +418,7 @@ exports.getWorkerStats = async (req, res) => {
 exports.getSellerStats = async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     // Get seller profile
     const seller = await Seller.findOne({ user: userId });
     if (!seller) {
@@ -461,11 +482,11 @@ exports.getSellerStats = async (req, res) => {
     // Calculate revenue by status (delivered vs pending)
     const revenueByStatus = await Order.aggregate([
       { $unwind: "$items" },
-      { 
-        $match: { 
+      {
+        $match: {
           "items.seller": seller._id,
           "status": { $in: ["pending", "confirmed", "assigned_delivery", "out_for_delivery", "delivered"] }
-        } 
+        }
       },
       {
         $group: {
@@ -474,7 +495,7 @@ exports.getSellerStats = async (req, res) => {
         }
       }
     ]);
-    
+
     let deliveredRevenue = 0;
     let pendingRevenue = 0;
     revenueByStatus.forEach(stat => {
@@ -509,6 +530,38 @@ exports.getSellerStats = async (req, res) => {
     ]);
     const monthlyRevenue = monthlyRevenueData.length > 0 ? monthlyRevenueData[0].total : 0;
 
+    // Get customer reviews from seller's products
+    const productsWithReviews = await Product.find({
+      seller: seller._id,
+      "reviews.0": { $exists: true }
+    })
+      .select("name reviews")
+      .populate("reviews.customer", "name")
+      .lean();
+
+    // Flatten all reviews across products, attach product name, sort by date
+    const allReviews = [];
+    productsWithReviews.forEach(product => {
+      product.reviews.forEach(review => {
+        allReviews.push({
+          customer: review.customer?.name || "Unknown Customer",
+          product: product.name,
+          rating: review.rating || 0,
+          comment: review.comment || "",
+          date: review.date
+        });
+      });
+    });
+    allReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const sellerReviews = allReviews.slice(0, 10);
+
+    // Get top products by rating and sales
+    const topProducts = await Product.find({ seller: seller._id })
+      .sort({ rating: -1, numReviews: -1 })
+      .limit(5)
+      .select("name price rating numReviews inStock images")
+      .lean();
+
     res.json({
       seller: {
         id: seller._id,
@@ -532,7 +585,9 @@ exports.getSellerStats = async (req, res) => {
         delivered: deliveredRevenue,
         pending: pendingRevenue,
         monthly: monthlyRevenue
-      }
+      },
+      reviews: sellerReviews,
+      topProducts
     });
   } catch (error) {
     console.error("Get seller stats error:", error);
@@ -548,17 +603,17 @@ exports.getDeliveryStats = async (req, res) => {
 
     // Get delivery assignments
     const totalDeliveries = await DeliveryAssignment.countDocuments({ deliveryPerson: userId });
-    const assignedDeliveries = await DeliveryAssignment.countDocuments({ 
-      deliveryPerson: userId, 
-      status: "assigned" 
+    const assignedDeliveries = await DeliveryAssignment.countDocuments({
+      deliveryPerson: userId,
+      status: "assigned"
     });
-    const inTransitDeliveries = await DeliveryAssignment.countDocuments({ 
-      deliveryPerson: userId, 
+    const inTransitDeliveries = await DeliveryAssignment.countDocuments({
+      deliveryPerson: userId,
       status: { $in: ["picked_up", "in_transit"] }
     });
-    const completedDeliveries = await DeliveryAssignment.countDocuments({ 
-      deliveryPerson: userId, 
-      status: "delivered" 
+    const completedDeliveries = await DeliveryAssignment.countDocuments({
+      deliveryPerson: userId,
+      status: "delivered"
     });
 
     // Get recent deliveries
@@ -665,17 +720,25 @@ exports.getAdminStats = async (req, res) => {
     // Verification pending counts
     const pendingWorkers = await Worker.countDocuments({ isVerified: false });
     const pendingSellers = await Seller.countDocuments({ isVerified: false });
-    const pendingDelivery = await User.countDocuments({ role: "delivery", isEmailVerified: false });
+    const DeliveryPerson = require("../models/DeliveryPerson");
+    const pendingDelivery = await DeliveryPerson.countDocuments({ isVerified: false });
 
     // Bookings stats
     const totalBookings = await Booking.countDocuments();
     const pendingBookings = await Booking.countDocuments({ status: "pending" });
+    const acceptedBookings = await Booking.countDocuments({ status: "accepted" });
+    const inProgressBookings = await Booking.countDocuments({ status: { $in: ["in-progress", "in_progress"] } });
     const completedBookings = await Booking.countDocuments({ status: "completed" });
+    const cancelledBookings = await Booking.countDocuments({ status: "cancelled" });
+    const rejectedBookings = await Booking.countDocuments({ status: "rejected" });
 
     // Orders stats
     const totalOrders = await Order.countDocuments();
-    const pendingOrders = await Order.countDocuments({ status: { $in: ["pending", "processing"] } });
+    const pendingOrders = await Order.countDocuments({ status: { $in: ["pending", "confirmed"] } });
+    const assignedOrders = await Order.countDocuments({ status: "assigned_delivery" });
+    const outForDeliveryOrders = await Order.countDocuments({ status: "out_for_delivery" });
     const deliveredOrders = await Order.countDocuments({ status: "delivered" });
+    const cancelledOrders = await Order.countDocuments({ status: "cancelled" });
 
     // Products stats
     const totalProducts = await Product.countDocuments();
@@ -686,14 +749,14 @@ exports.getAdminStats = async (req, res) => {
 
     // Revenue calculation
     const bookingRevenueData = await Booking.aggregate([
-      { $match: { status: "completed", paymentStatus: "paid" } },
-      { $group: { _id: null, total: { $sum: "$price" } } }
+      { $match: { status: "completed" } },
+      { $group: { _id: null, total: { $sum: { $ifNull: ["$finalPrice", "$price"] } } } }
     ]);
     const bookingRevenue = bookingRevenueData.length > 0 ? bookingRevenueData[0].total : 0;
 
     const orderRevenueData = await Order.aggregate([
       { $match: { status: { $ne: "cancelled" } } },
-      { $group: { _id: null, total: { $sum: "$total" } } }
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } }
     ]);
     const orderRevenue = orderRevenueData.length > 0 ? orderRevenueData[0].total : 0;
 
@@ -705,14 +768,13 @@ exports.getAdminStats = async (req, res) => {
     startOfMonth.setHours(0, 0, 0, 0);
 
     const monthlyBookingRevenue = await Booking.aggregate([
-      { 
-        $match: { 
-          status: "completed", 
-          paymentStatus: "paid",
+      {
+        $match: {
+          status: "completed",
           completedAt: { $gte: startOfMonth }
-        } 
+        }
       },
-      { $group: { _id: null, total: { $sum: "$price" } } }
+      { $group: { _id: null, total: { $sum: { $ifNull: ["$finalPrice", "$price"] } } } }
     ]);
     const monthlyBookingTotal = monthlyBookingRevenue.length > 0 ? monthlyBookingRevenue[0].total : 0;
 
@@ -723,7 +785,7 @@ exports.getAdminStats = async (req, res) => {
           createdAt: { $gte: startOfMonth }
         }
       },
-      { $group: { _id: null, total: { $sum: "$total" } } }
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } }
     ]);
     const monthlyOrderTotal = monthlyOrderRevenue.length > 0 ? monthlyOrderRevenue[0].total : 0;
 
@@ -736,16 +798,18 @@ exports.getAdminStats = async (req, res) => {
       .limit(5);
 
     const recentBookings = await Booking.find()
-      .populate("customer", "name")
+      .populate("customer", "name email phone")
       .populate("worker", "name")
-      .populate("service", "name")
+      .populate("service", "name category price")
       .sort({ createdAt: -1 })
-      .limit(5);
+      .limit(10);
 
     const recentOrders = await Order.find()
-      .populate("customer", "name")
+      .populate("customer", "name email phone")
+      .populate("items.product", "name price images")
+      .populate("items.seller", "shopName")
       .sort({ createdAt: -1 })
-      .limit(5);
+      .limit(10);
 
     res.json({
       users: {
@@ -764,13 +828,20 @@ exports.getAdminStats = async (req, res) => {
       bookings: {
         total: totalBookings,
         pending: pendingBookings,
+        accepted: acceptedBookings,
+        inProgress: inProgressBookings,
         completed: completedBookings,
+        cancelled: cancelledBookings,
+        rejected: rejectedBookings,
         recent: recentBookings
       },
       orders: {
         total: totalOrders,
         pending: pendingOrders,
+        assigned: assignedOrders,
+        outForDelivery: outForDeliveryOrders,
         delivered: deliveredOrders,
+        cancelled: cancelledOrders,
         recent: recentOrders
       },
       products: {
@@ -797,7 +868,7 @@ exports.getAdminStats = async (req, res) => {
 exports.getSellerProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     const seller = await Seller.findOne({ user: userId }).populate("user", "name email phone profilePicture");
     if (!seller) {
       return res.status(404).json({ message: "Seller profile not found" });
@@ -806,7 +877,7 @@ exports.getSellerProfile = async (req, res) => {
     const Product = require("../models/Product");
     const productsCount = await Product.countDocuments({ seller: seller._id });
     const ordersCount = await Order.countDocuments({ "items.seller": seller._id });
-    
+
     // Calculate total revenue
     const revenueData = await Order.aggregate([
       { $unwind: "$items" },
@@ -849,11 +920,11 @@ exports.updateSellerShopSettings = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    
+
     if (name && name !== user.name) {
       user.name = name;
     }
-    
+
     // Update profile picture if uploaded
     if (req.files && req.files.profilePicture && req.files.profilePicture[0]) {
       user.profilePicture = "/uploads/profiles/" + req.files.profilePicture[0].filename;

@@ -28,4 +28,10 @@ router.put("/:id/cancel", orderController.cancelOrder)
 // Track order
 router.get("/:id/track", orderController.trackOrder)
 
+// Pickup OTP verification (for sellers)
+router.post("/verify-pickup-otp", orderController.verifyPickupOTP)
+
+// Get pickup OTPs for an order (for sellers)
+router.get("/:orderId/pickup-otps", orderController.getPickupOTPs)
+
 module.exports = router

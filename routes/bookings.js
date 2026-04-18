@@ -11,6 +11,9 @@ router.use(authenticateToken)
 // Create booking
 router.post("/", authorize("customer"), creationLimiter, createBookingValidation, bookingController.createBooking)
 
+// Create broadcast booking (send to all workers)
+router.post("/broadcast", authorize("customer"), creationLimiter, bookingController.createBroadcastBooking)
+
 // Get user bookings
 router.get("/", bookingController.getUserBookings)
 
@@ -29,7 +32,16 @@ router.put("/:id/complete", authorize("worker"), bookingController.completeBooki
 // Cancel booking
 router.put("/:id/cancel", authorize("customer"), bookingController.cancelBooking)
 
+// Rejection fallback routes (customer)
+router.get("/:id/alternatives", authorize("customer"), bookingController.getAlternativeWorkers)
+router.post("/:id/rebook", authorize("customer"), bookingController.rebookWithWorker)
+router.post("/:id/broadcast-rebook", authorize("customer"), bookingController.broadcastRejectedBooking)
+
 // Add review
 router.post("/:id/review", authorize("customer"), bookingController.addReview)
+
+// Location sharing
+router.post("/:id/share-location", authorize("customer"), bookingController.shareLiveLocation)
+router.post("/:id/stop-location", authorize("customer"), bookingController.stopSharingLocation)
 
 module.exports = router

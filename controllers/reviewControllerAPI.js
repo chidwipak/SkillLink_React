@@ -167,4 +167,99 @@ exports.getProductReviews = async (req, res) => {
   }
 }
 
+// Add review for seller (direct seller review from order)
+exports.addSellerReview = async (req, res) => {
+  try {
+    const { sellerId, rating, comment, orderId } = req.body
+    const userId = req.user.userId
+
+    const seller = await Seller.findById(sellerId)
+    if (!seller) {
+      return res.status(404).json({ success: false, message: "Seller not found" })
+    }
+
+    const ratingValue = parseFloat(rating)
+    if (isNaN(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+      return res.status(400).json({ success: false, message: "Invalid rating value" })
+    }
+
+    // Verify the order if provided
+    if (orderId) {
+      const order = await Order.findById(orderId)
+      if (!order) {
+        return res.status(404).json({ success: false, message: "Order not found" })
+      }
+      if (order.customer.toString() !== userId) {
+        return res.status(403).json({ success: false, message: "You can only review sellers from your own orders" })
+      }
+
+      // Check if order is delivered
+      if (order.status !== "delivered") {
+        return res.status(400).json({ success: false, message: "You can only review after delivery" })
+      }
+
+      // Check if already reviewed this seller for this order
+      const sellerItem = order.items.find(item => item.seller?.toString() === sellerId)
+      if (sellerItem?.isSellerReviewed) {
+        return res.status(400).json({ success: false, message: "You have already reviewed this seller for this order" })
+      }
+
+      // Mark seller as reviewed in order
+      order.items.forEach(item => {
+        if (item.seller?.toString() === sellerId) {
+          item.isSellerReviewed = true
+        }
+      })
+      await order.save()
+    }
+
+    // Initialize reviews array if not exists
+    if (!seller.reviews) {
+      seller.reviews = []
+    }
+
+    // Add review
+    seller.reviews.push({
+      customer: userId,
+      rating: ratingValue,
+      comment,
+      orderId,
+      date: new Date(),
+    })
+
+    // Calculate new average rating
+    const totalRating = seller.reviews.reduce((sum, review) => sum + review.rating, 0)
+    seller.rating = totalRating / seller.reviews.length
+
+    await seller.save()
+
+    res.json({ success: true, message: "Seller review added successfully" })
+  } catch (error) {
+    console.error("Add seller review error:", error)
+    res.status(500).json({ success: false, message: "Failed to add review" })
+  }
+}
+
+// Get seller reviews
+exports.getSellerReviews = async (req, res) => {
+  try {
+    const seller = await Seller.findById(req.params.sellerId)
+      .populate("reviews.customer", "name profilePicture")
+    
+    if (!seller) {
+      return res.status(404).json({ success: false, message: "Seller not found" })
+    }
+
+    res.json({ 
+      success: true, 
+      reviews: seller.reviews || [], 
+      rating: seller.rating,
+      shopName: seller.shopName || seller.businessName
+    })
+  } catch (error) {
+    console.error("Get seller reviews error:", error)
+    res.status(500).json({ success: false, message: "Failed to fetch reviews" })
+  }
+}
+
 module.exports = exports

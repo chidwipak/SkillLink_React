@@ -7,6 +7,21 @@ const socketIo = require("socket.io")
 const helmet = require("helmet")
 const compression = require("compression")
 require("dotenv").config()
+const { setupSwagger } = require("./swagger")
+
+// Import custom middleware
+const { requestLogger, errorLogger } = require("./middleware/logger")
+const { requestTimer, getMetrics } = require("./middleware/requestTimer")
+const { sanitizeRequest, blockInjection } = require("./middleware/sanitizer")
+const { normalizeRequest, trimStrings } = require("./middleware/inputNormalizer")
+const { responseFormatter, addResponseHeaders } = require("./middleware/responseFormatter")
+const { errorHandler, notFoundHandler } = require("./middleware/errorHandler")
+const { trackActivity } = require("./middleware/sessionManager")
+const { cacheResponse, getCacheStats } = require("./middleware/cache")
+const { connectRedis } = require("./utils/redisClient")
+
+// Initialize Redis (non-blocking, falls back to in-memory if unavailable)
+connectRedis()
 
 // Import routes
 const indexRoutes = require("./routes/index")
@@ -23,6 +38,7 @@ const notificationRoutes = require("./routes/notifications")
 const deliveryRoutes = require("./routes/delivery")
 const paymentRoutes = require("./routes/payment")
 const workerRoutes = require("./routes/workers")
+const verifierRoutes = require("./routes/verifier")
 
 const socketHelper = require("./socket")
 
@@ -86,6 +102,17 @@ app.use(helmet({
 }))
 app.use(compression()) // Compress responses
 
+// Custom Middleware - Request Processing Pipeline
+app.use(requestLogger({ console: true, file: true }))  // Member 4: Logging
+app.use(requestTimer({ slowThreshold: 1000 }))         // Member 4: Performance tracking
+app.use(addResponseHeaders)                             // Member 5: Response headers
+app.use(responseFormatter)                              // Member 5: Response formatting
+app.use(trimStrings)                                    // Member 2: Trim whitespace
+app.use(sanitizeRequest())                              // Member 2: XSS protection
+app.use(blockInjection)                                 // Member 2: Injection prevention
+app.use(normalizeRequest())                             // Member 2: Input normalization
+app.use(trackActivity)                                  // Member 1: Session tracking
+
 // Middleware
 app.use(express.static(path.join(__dirname, "public")))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
@@ -106,6 +133,23 @@ app.use("/api/reviews", reviewRoutes)
 app.use("/api/notifications", notificationRoutes)
 app.use("/api/delivery", deliveryRoutes)
 app.use("/api/payment", paymentRoutes)
+app.use("/api/verifier", verifierRoutes)
+
+// Swagger API Documentation
+setupSwagger(app)
+
+// Metrics endpoint (Member 4: Monitoring) - Admin only
+const { authenticateToken, authorize } = require("./middleware/jwt")
+app.get("/api/metrics", authenticateToken, authorize("admin"), async (req, res) => {
+  const cacheInfo = await getCacheStats()
+  res.json({
+    success: true,
+    data: {
+      performance: getMetrics(),
+      cache: cacheInfo
+    }
+  })
+})
 
 // Socket.io connection
 io.on("connection", (socket) => {
@@ -149,22 +193,13 @@ io.on("connection", (socket) => {
   })
 })
 
-// Error handling - Return JSON instead of rendering views
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: "Route not found" })
-})
-
-app.use((err, req, res, next) => {
-  console.error(err.stack)
-  res.status(500).json({ 
-    success: false, 
-    message: "Internal server error",
-    error: process.env.NODE_ENV === "development" ? err.message : undefined
-  })
-})
+// Error handling middleware (Member 5)
+app.use(notFoundHandler)  // 404 handler
+app.use(errorLogger())    // Log errors (Member 4)
+app.use(errorHandler)     // Centralized error handling (Member 5)
 
 // Start server
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 5005
 server.listen(PORT, () => {
   console.log(`🚀 Backend API server running on port ${PORT}`)
   console.log(`📡 Socket.IO enabled for real-time features`)

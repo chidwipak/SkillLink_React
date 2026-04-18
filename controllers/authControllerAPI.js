@@ -1,30 +1,31 @@
 const User = require("../models/User")
 const Worker = require("../models/Worker")
 const Seller = require("../models/Seller")
+const DeliveryPerson = require("../models/DeliveryPerson")
 const bcrypt = require("bcryptjs")
 const crypto = require("crypto")
 const emailService = require("../utils/emailService")
 const multer = require("multer")
 const path = require("path")
 const fs = require("fs")
-const { 
-  generateAccessToken, 
+const {
+  generateAccessToken,
   generateRefreshToken,
-  verifyRefreshToken 
+  verifyRefreshToken
 } = require("../middleware/jwt")
 
 // Configure multer for profile photo uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     let uploadPath = "public/uploads/profiles/"
-    
+
     // Different paths for different file types
     if (file.fieldname === 'shopExteriorImage' || file.fieldname === 'shopInteriorImage') {
       uploadPath = "public/uploads/shops/"
     } else if (file.fieldname.includes('Document') || file.fieldname.includes('License')) {
       uploadPath = "public/uploads/documents/"
     }
-    
+
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true })
     }
@@ -33,9 +34,9 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
     const ext = path.extname(file.originalname)
-    const prefix = file.fieldname.includes('shop') ? 'shop-' : 
-                  file.fieldname.includes('Document') ? 'doc-' :
-                  file.fieldname.includes('License') ? 'license-' : 'profile-'
+    const prefix = file.fieldname.includes('shop') ? 'shop-' :
+      file.fieldname.includes('Document') ? 'doc-' :
+        file.fieldname.includes('License') ? 'license-' : 'profile-'
     cb(null, prefix + uniqueSuffix + ext)
   },
 })
@@ -64,7 +65,7 @@ exports.uploadRegistration = multer({
       } else {
         cb(new Error("Only images are allowed for photos"))
       }
-    } 
+    }
     // Allow documents and images for document fields
     else if (file.fieldname.includes('Document') || file.fieldname.includes('License')) {
       if (file.mimetype.startsWith("image/") || file.mimetype === "application/pdf") {
@@ -107,27 +108,27 @@ exports.register = async (req, res) => {
 
     // Validation
     if (!name || !email || !password || !phone || !role) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "All required fields must be provided" 
+      return res.status(400).json({
+        success: false,
+        message: "All required fields must be provided"
       })
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid email format" 
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email format"
       })
     }
 
     // Check if user exists
     const existingUser = await User.findOne({ email })
     if (existingUser) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Email already registered" 
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered"
       })
     }
 
@@ -148,6 +149,7 @@ exports.register = async (req, res) => {
       emailVerificationOTP: otp,
       emailVerificationExpiry: otpExpiry,
       isEmailVerified: false,
+      verification_status: (role === "admin" || role === "verifier") ? "Approved" : "Pending",
     }
 
     // Add profile picture path if file was uploaded
@@ -166,12 +168,13 @@ exports.register = async (req, res) => {
         skills: skills ? skills.split(",").map((s) => s.trim()) : [],
         experience: experience || 0,
       }
-      
+
       // Add worker document if uploaded
       if (req.files && req.files.aadharDocument && req.files.aadharDocument[0]) {
         workerData.documents = ["/uploads/documents/" + req.files.aadharDocument[0].filename]
+        workerData.idProofDocument = "/uploads/documents/" + req.files.aadharDocument[0].filename
       }
-      
+
       await Worker.create(workerData)
     } else if (role === "seller") {
       const sellerData = {
@@ -180,9 +183,10 @@ exports.register = async (req, res) => {
         description: req.body.businessDescription || description || "",
         businessDescription: req.body.businessDescription || description || "",
         categories: categories ? categories.split(",").map((c) => c.trim()) : req.body.categories ? req.body.categories.split(",").map((c) => c.trim()) : [],
-        shopImages: {}
+        shopImages: {},
+        documents: []
       }
-      
+
       // Add shop images if uploaded
       if (req.files && req.files.shopExteriorImage && req.files.shopExteriorImage[0]) {
         sellerData.shopImages.exterior = "/uploads/shops/" + req.files.shopExteriorImage[0].filename
@@ -190,20 +194,45 @@ exports.register = async (req, res) => {
       if (req.files && req.files.shopInteriorImage && req.files.shopInteriorImage[0]) {
         sellerData.shopImages.interior = "/uploads/shops/" + req.files.shopInteriorImage[0].filename
       }
-      
+
+      // Add business document if uploaded
+      if (req.files && req.files.businessDocument && req.files.businessDocument[0]) {
+        sellerData.documents.push("/uploads/documents/" + req.files.businessDocument[0].filename)
+      }
+
       // Add GST number if provided
       if (req.body.gstNumber) {
         sellerData.gstNumber = req.body.gstNumber
       }
-      
+
       await Seller.create(sellerData)
+    } else if (role === "delivery") {
+      const deliveryData = {
+        user: user._id,
+        vehicleType: req.body.vehicleType || "bike",
+        vehicleNumber: req.body.vehicleNumber || "",
+        documents: []
+      }
+
+      // Add driving license if uploaded
+      if (req.files && req.files.drivingLicense && req.files.drivingLicense[0]) {
+        deliveryData.drivingLicense = "/uploads/documents/" + req.files.drivingLicense[0].filename
+        deliveryData.documents.push("/uploads/documents/" + req.files.drivingLicense[0].filename)
+      }
+
+      // Add delivery document (Aadhar) if uploaded
+      if (req.files && req.files.deliveryDocument && req.files.deliveryDocument[0]) {
+        deliveryData.documents.push("/uploads/documents/" + req.files.deliveryDocument[0].filename)
+      }
+
+      await DeliveryPerson.create(deliveryData)
     }
 
     // Send OTP via email (optional, doesn't block registration)
     console.log(`📧 Sending OTP to ${email}: ${otp}`)
     try {
       const emailResult = await emailService.sendVerificationEmail(email, name, otp)
-      
+
       if (emailResult.success) {
         console.log("✅ Verification email sent successfully");
       } else {
@@ -216,15 +245,15 @@ exports.register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Registration successful! You can now login with your credentials.",
+      message: "Registration successful! Your account is pending verification. You will be able to login once approved.",
       data: { email, otpSent: true },
     })
   } catch (error) {
     console.error("Registration error:", error)
-    res.status(500).json({ 
-      success: false, 
-      message: "Registration failed", 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: "Registration failed",
+      error: error.message
     })
   }
 }
@@ -235,38 +264,38 @@ exports.verifyEmail = async (req, res) => {
     const { email, otp } = req.body
 
     if (!email || !otp) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Email and OTP are required" 
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP are required"
       })
     }
 
     const user = await User.findOne({ email })
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "User not found" 
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
       })
     }
 
     if (user.isEmailVerified) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Email already verified" 
+      return res.status(400).json({
+        success: false,
+        message: "Email already verified"
       })
     }
 
     if (user.emailVerificationOTP !== otp) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid OTP" 
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP"
       })
     }
 
     if (new Date() > user.emailVerificationExpiry) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "OTP expired. Please request a new one." 
+      return res.status(400).json({
+        success: false,
+        message: "OTP expired. Please request a new one."
       })
     }
 
@@ -281,9 +310,9 @@ exports.verifyEmail = async (req, res) => {
     })
   } catch (error) {
     console.error("Email verification error:", error)
-    res.status(500).json({ 
-      success: false, 
-      message: "Verification failed" 
+    res.status(500).json({
+      success: false,
+      message: "Verification failed"
     })
   }
 }
@@ -295,16 +324,16 @@ exports.resendOTP = async (req, res) => {
 
     const user = await User.findOne({ email })
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "User not found" 
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
       })
     }
 
     if (user.isEmailVerified) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Email already verified" 
+      return res.status(400).json({
+        success: false,
+        message: "Email already verified"
       })
     }
 
@@ -319,7 +348,7 @@ exports.resendOTP = async (req, res) => {
     // Send OTP via email
     console.log(`📧 Resending OTP to ${email}: ${otp}`)
     const emailResult = await emailService.sendVerificationEmail(email, user.name, otp)
-    
+
     if (emailResult.success) {
       console.log("✅ OTP resent successfully");
       res.json({
@@ -335,9 +364,9 @@ exports.resendOTP = async (req, res) => {
     }
   } catch (error) {
     console.error("Resend OTP error:", error)
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to send OTP" 
+    res.status(500).json({
+      success: false,
+      message: "Failed to send OTP"
     })
   }
 }
@@ -348,28 +377,47 @@ exports.login = async (req, res) => {
     const { email, password } = req.body
 
     if (!email || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Email and password are required" 
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required"
       })
     }
 
     // Find user
     const user = await User.findOne({ email })
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: "Invalid email or password" 
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password"
       })
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password)
     if (!isPasswordValid) {
-      return res.status(401).json({ 
-        success: false, 
-        message: "Invalid email or password" 
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password"
       })
+    }
+
+    // Check verification_status for non-admin/non-verifier users
+    if (user.role !== "admin" && user.role !== "verifier") {
+      if (user.verification_status === "Pending") {
+        return res.status(403).json({
+          success: false,
+          message: "Your account is pending approval. Please wait until it is approved by the verifier.",
+          verification_status: "Pending"
+        })
+      }
+      if (user.verification_status === "Rejected") {
+        return res.status(403).json({
+          success: false,
+          message: "Your account was rejected. Reason: " + (user.rejection_feedback || "No feedback provided") + ". Please register again with valid details.",
+          verification_status: "Rejected",
+          rejection_feedback: user.rejection_feedback
+        })
+      }
     }
 
     // Generate tokens
@@ -391,6 +439,7 @@ exports.login = async (req, res) => {
       address: user.address,
       isVerified: user.isVerified,
       isEmailVerified: user.isEmailVerified,
+      verification_status: user.verification_status,
       createdAt: user.createdAt,
     }
 
@@ -403,9 +452,9 @@ exports.login = async (req, res) => {
     })
   } catch (error) {
     console.error("Login error:", error)
-    res.status(500).json({ 
-      success: false, 
-      message: "Login failed" 
+    res.status(500).json({
+      success: false,
+      message: "Login failed"
     })
   }
 }
@@ -416,26 +465,26 @@ exports.refreshToken = async (req, res) => {
     const { refreshToken } = req.body
 
     if (!refreshToken) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Refresh token required" 
+      return res.status(400).json({
+        success: false,
+        message: "Refresh token required"
       })
     }
 
     const decoded = verifyRefreshToken(refreshToken)
     if (!decoded) {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Invalid refresh token" 
+      return res.status(403).json({
+        success: false,
+        message: "Invalid refresh token"
       })
     }
 
     // Verify token exists in database
     const user = await User.findById(decoded.userId)
     if (!user || user.refreshToken !== refreshToken) {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Invalid refresh token" 
+      return res.status(403).json({
+        success: false,
+        message: "Invalid refresh token"
       })
     }
 
@@ -453,9 +502,9 @@ exports.refreshToken = async (req, res) => {
     })
   } catch (error) {
     console.error("Refresh token error:", error)
-    res.status(500).json({ 
-      success: false, 
-      message: "Token refresh failed" 
+    res.status(500).json({
+      success: false,
+      message: "Token refresh failed"
     })
   }
 }
@@ -464,11 +513,11 @@ exports.refreshToken = async (req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select("-password -refreshToken")
-    
+
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "User not found" 
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
       })
     }
 
@@ -488,9 +537,9 @@ exports.getProfile = async (req, res) => {
     })
   } catch (error) {
     console.error("Get profile error:", error)
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch profile" 
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch profile"
     })
   }
 }
@@ -594,9 +643,9 @@ exports.logout = async (req, res) => {
     })
   } catch (error) {
     console.error("Logout error:", error)
-    res.status(500).json({ 
-      success: false, 
-      message: "Logout failed" 
+    res.status(500).json({
+      success: false,
+      message: "Logout failed"
     })
   }
 }
@@ -608,9 +657,9 @@ exports.forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ email })
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "User not found" 
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
       })
     }
 
@@ -633,9 +682,9 @@ exports.forgotPassword = async (req, res) => {
     })
   } catch (error) {
     console.error("Forgot password error:", error)
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to process request" 
+    res.status(500).json({
+      success: false,
+      message: "Failed to process request"
     })
   }
 }
@@ -646,9 +695,9 @@ exports.resetPassword = async (req, res) => {
     const { token, password } = req.body
 
     if (!token || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Token and password are required" 
+      return res.status(400).json({
+        success: false,
+        message: "Token and password are required"
       })
     }
 
@@ -661,9 +710,9 @@ exports.resetPassword = async (req, res) => {
     })
 
     if (!user) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid or expired reset token" 
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired reset token"
       })
     }
 
@@ -679,9 +728,9 @@ exports.resetPassword = async (req, res) => {
     })
   } catch (error) {
     console.error("Reset password error:", error)
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to reset password" 
+    res.status(500).json({
+      success: false,
+      message: "Failed to reset password"
     })
   }
 }

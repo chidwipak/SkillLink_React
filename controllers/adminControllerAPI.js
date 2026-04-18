@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const Worker = require("../models/Worker");
 const Seller = require("../models/Seller");
+const DeliveryPerson = require("../models/DeliveryPerson");
 const Notification = require("../models/Notification");
 const { emitNotification } = require("../socket");
 
@@ -10,7 +11,6 @@ exports.getPendingVerifications = async (req, res) => {
     // Get pending workers
     const pendingWorkers = await Worker.find({ isVerified: false })
       .populate("user", "name email phone createdAt")
-      .populate("service", "name category")
       .sort({ createdAt: -1 });
 
     // Get pending sellers
@@ -19,11 +19,8 @@ exports.getPendingVerifications = async (req, res) => {
       .sort({ createdAt: -1 });
 
     // Get pending delivery persons
-    const pendingDelivery = await User.find({ 
-      role: "delivery", 
-      isEmailVerified: true 
-    })
-      .select("name email phone createdAt")
+    const pendingDelivery = await DeliveryPerson.find({ isVerified: false })
+      .populate("user", "name email phone createdAt")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -235,10 +232,14 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// Get user details (admin)
+// Get user details (admin) - comprehensive stats
 exports.getUserDetails = async (req, res) => {
   try {
     const { userId } = req.params;
+    const mongoose = require("mongoose");
+    const Booking = require("../models/Booking");
+    const Order = require("../models/Order");
+    const Product = require("../models/Product");
 
     const user = await User.findById(userId)
       .select("-password -refreshToken -passwordResetToken -emailVerificationOTP");
@@ -247,17 +248,168 @@ exports.getUserDetails = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Get role-specific details
     let roleDetails = null;
-    if (user.role === "worker") {
-      roleDetails = await Worker.findOne({ user: userId }).populate("service");
+    let stats = {};
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    if (user.role === "customer") {
+      // Customer stats
+      const totalBookings = await Booking.countDocuments({ customer: userId });
+      const completedBookings = await Booking.countDocuments({ customer: userId, status: "completed" });
+      const pendingBookings = await Booking.countDocuments({ customer: userId, status: "pending" });
+      const cancelledBookings = await Booking.countDocuments({ customer: userId, status: "cancelled" });
+
+      const totalOrders = await Order.countDocuments({ customer: userId });
+      const deliveredOrders = await Order.countDocuments({ customer: userId, status: "delivered" });
+      const pendingOrders = await Order.countDocuments({ customer: userId, status: { $in: ["pending", "processing"] } });
+
+      const orderSpentData = await Order.aggregate([
+        { $match: { customer: userObjectId, status: "delivered" } },
+        { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+      ]);
+      const bookingSpentData = await Booking.aggregate([
+        { $match: { customer: userObjectId, status: "completed" } },
+        { $group: { _id: null, total: { $sum: { $ifNull: ["$finalPrice", "$price"] } } } }
+      ]);
+
+      const recentBookings = await Booking.find({ customer: userId })
+        .populate("service", "name category")
+        .populate("worker", "name")
+        .sort({ createdAt: -1 }).limit(5);
+
+      const recentOrders = await Order.find({ customer: userId })
+        .populate("items.product", "name price")
+        .sort({ createdAt: -1 }).limit(5);
+
+      stats = {
+        bookings: { total: totalBookings, completed: completedBookings, pending: pendingBookings, cancelled: cancelledBookings, recent: recentBookings },
+        orders: { total: totalOrders, delivered: deliveredOrders, pending: pendingOrders, recent: recentOrders },
+        totalSpent: (orderSpentData[0]?.total || 0) + (bookingSpentData[0]?.total || 0),
+        orderSpent: orderSpentData[0]?.total || 0,
+        bookingSpent: bookingSpentData[0]?.total || 0
+      };
+
+    } else if (user.role === "worker") {
+      const worker = await Worker.findOne({ user: userId }).populate("reviews.customer", "name profilePicture");
+      roleDetails = worker;
+
+      if (worker) {
+        const totalBookings = await Booking.countDocuments({ worker: worker._id });
+        const completedBookings = await Booking.countDocuments({ worker: worker._id, status: "completed" });
+        const pendingBookings = await Booking.countDocuments({ worker: worker._id, status: "pending" });
+        const cancelledBookings = await Booking.countDocuments({ worker: worker._id, status: "cancelled" });
+
+        const earningsData = await Booking.aggregate([
+          { $match: { worker: worker._id, status: "completed" } },
+          { $group: { _id: null, total: { $sum: { $ifNull: ["$finalPrice", "$price"] } } } }
+        ]);
+
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const monthlyEarningsData = await Booking.aggregate([
+          { $match: { worker: worker._id, status: "completed", completedAt: { $gte: startOfMonth } } },
+          { $group: { _id: null, total: { $sum: { $ifNull: ["$finalPrice", "$price"] } } } }
+        ]);
+
+        const recentBookings = await Booking.find({ worker: worker._id })
+          .populate("customer", "name phone")
+          .populate("service", "name category")
+          .sort({ createdAt: -1 }).limit(5);
+
+        // Get reviews
+        const reviewedBookings = await Booking.find({ worker: worker._id, isReviewed: true })
+          .populate("customer", "name profilePicture")
+          .select("review rating customer createdAt service")
+          .sort({ createdAt: -1 }).limit(10);
+
+        stats = {
+          bookings: { total: totalBookings, completed: completedBookings, pending: pendingBookings, cancelled: cancelledBookings, recent: recentBookings },
+          earnings: { total: earningsData[0]?.total || 0, monthly: monthlyEarningsData[0]?.total || 0 },
+          rating: worker.rating,
+          totalRatings: worker.reviews?.length || 0,
+          isVerified: worker.isVerified,
+          isAvailable: worker.isAvailable,
+          reviews: worker.reviews?.slice(-10).reverse() || [],
+          recentBookings
+        };
+
+      }
     } else if (user.role === "seller") {
-      roleDetails = await Seller.findOne({ user: userId });
+      const seller = await Seller.findOne({ user: userId });
+      roleDetails = seller;
+
+      if (seller) {
+        const totalProducts = await Product.countDocuments({ seller: seller._id });
+        const activeProducts = await Product.countDocuments({ seller: seller._id, inStock: true });
+
+        const orderAggregation = await Order.aggregate([
+          { $unwind: "$items" },
+          { $match: { "items.seller": seller._id } },
+          { $group: { _id: "$items.status", count: { $sum: 1 }, total: { $sum: { $multiply: ["$items.price", "$items.quantity"] } } } }
+        ]);
+
+        let totalOrders = 0, deliveredOrders = 0, pendingOrders = 0, totalRevenue = 0;
+        orderAggregation.forEach(stat => {
+          totalOrders += stat.count;
+          if (stat._id === "delivered") { deliveredOrders = stat.count; totalRevenue += stat.total; }
+          if (["pending", "confirmed", "processing"].includes(stat._id)) pendingOrders += stat.count;
+        });
+
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const monthlyRevenueData = await Order.aggregate([
+          { $unwind: "$items" },
+          { $match: { "items.seller": seller._id, createdAt: { $gte: startOfMonth } } },
+          { $group: { _id: null, total: { $sum: { $multiply: ["$items.price", "$items.quantity"] } } } }
+        ]);
+
+        // Get top products
+        const topProducts = await Product.find({ seller: seller._id })
+          .sort({ rating: -1 }).limit(5);
+
+        // Get recent orders
+        const recentOrders = await Order.find({ "items.seller": seller._id })
+          .populate("customer", "name")
+          .populate("items.product", "name price")
+          .sort({ createdAt: -1 }).limit(5);
+
+        stats = {
+          products: { total: totalProducts, active: activeProducts },
+          orders: { total: totalOrders, delivered: deliveredOrders, pending: pendingOrders, recent: recentOrders },
+          revenue: { total: totalRevenue, monthly: monthlyRevenueData[0]?.total || 0 },
+          rating: seller.rating,
+          totalRatings: seller.totalRatings || 0,
+          shopName: seller.shopName,
+          isVerified: seller.isVerified,
+          topProducts
+        };
+      }
+
+    } else if (user.role === "delivery") {
+      const DeliveryAssignment = require("../models/DeliveryAssignment");
+
+      const totalDeliveries = await DeliveryAssignment.countDocuments({ deliveryPerson: userId });
+      const completedDeliveries = await DeliveryAssignment.countDocuments({ deliveryPerson: userId, status: "delivered" });
+
+      const earningsData = await DeliveryAssignment.aggregate([
+        { $match: { deliveryPerson: userObjectId, status: "delivered" } },
+        { $lookup: { from: "orders", localField: "order", foreignField: "_id", as: "orderData" } },
+        { $unwind: "$orderData" },
+        { $group: { _id: null, total: { $sum: "$orderData.deliveryFee" } } }
+      ]);
+
+      stats = {
+        deliveries: { total: totalDeliveries, completed: completedDeliveries },
+        earnings: { total: earningsData[0]?.total || 0 }
+      };
     }
 
     res.json({
       user,
-      roleDetails
+      roleDetails,
+      stats
     });
   } catch (error) {
     console.error("Get user details error:", error);

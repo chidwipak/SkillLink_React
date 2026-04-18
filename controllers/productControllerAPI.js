@@ -1,5 +1,7 @@
 const Product = require("../models/Product")
 const Seller = require("../models/Seller")
+const csvParser = require("csv-parser")
+const { Readable } = require("stream")
 
 // Get all products - show all listings from all sellers
 exports.getAllProducts = async (req, res) => {
@@ -90,21 +92,36 @@ exports.getUniqueProducts = async (req, res) => {
           ...product.toObject(),
           sellerCount: 1,
           lowestPrice: product.stock > 0 ? product.price : Infinity,
-          hasStock: product.stock > 0
+          hasStock: product.stock > 0,
+          avgRating: product.rating || 0,
+          totalReviews: product.reviews ? product.reviews.length : 0,
+          _ratingSum: product.rating || 0,
+          _ratingCount: product.rating ? 1 : 0
         })
       } else {
         const existing = productMap.get(key)
         existing.sellerCount++
+        // Accumulate ratings for averaging
+        if (product.rating) {
+          existing._ratingSum += product.rating
+          existing._ratingCount++
+          existing.avgRating = existing._ratingSum / existing._ratingCount
+        }
+        existing.totalReviews += product.reviews ? product.reviews.length : 0
         if (product.stock > 0) {
           existing.hasStock = true
           if (product.price < existing.lowestPrice) {
             existing.lowestPrice = product.price
-            // Update with product that has lower price
+            // Update with product that has lower price but keep aggregated data
             const updatedProduct = {
               ...product.toObject(),
               sellerCount: existing.sellerCount,
               lowestPrice: product.price,
-              hasStock: true
+              hasStock: true,
+              avgRating: existing.avgRating,
+              totalReviews: existing.totalReviews,
+              _ratingSum: existing._ratingSum,
+              _ratingCount: existing._ratingCount
             }
             productMap.set(key, updatedProduct)
           } else {
@@ -122,7 +139,11 @@ exports.getUniqueProducts = async (req, res) => {
     // Set lowestPrice to actual lowest for display
     products = products.map(p => ({
       ...p,
-      lowestPrice: p.lowestPrice === Infinity ? p.price : p.lowestPrice
+      lowestPrice: p.lowestPrice === Infinity ? p.price : p.lowestPrice,
+      avgRating: Math.round((p.avgRating || 0) * 10) / 10,
+      totalReviews: p.totalReviews || 0,
+      _ratingSum: undefined,
+      _ratingCount: undefined
     }))
 
     res.json({
@@ -481,6 +502,75 @@ exports.deleteProduct = async (req, res) => {
       success: false,
       message: "Failed to delete product",
     })
+  }
+}
+
+// Bulk CSV product upload (seller only)
+exports.csvUploadProducts = async (req, res) => {
+  try {
+    const seller = await Seller.findOne({ user: req.user.userId })
+    if (!seller) {
+      return res.status(404).json({ success: false, message: "Seller profile not found" })
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Please upload a CSV file" })
+    }
+
+    const results = []
+    const errors = []
+    let rowNum = 0
+
+    // Parse CSV from buffer
+    await new Promise((resolve, reject) => {
+      const stream = Readable.from(req.file.buffer)
+      stream
+        .pipe(csvParser())
+        .on("data", (row) => {
+          rowNum++
+          // Normalize keys to lowercase and trim
+          const r = {}
+          Object.keys(row).forEach((k) => { r[k.trim().toLowerCase()] = (row[k] || '').trim() })
+
+          const name = r.name || r.product_name || r.productname
+          const brand = r.brand || 'Generic'
+          const category = r.category
+          const price = parseFloat(r.price)
+          const stock = parseInt(r.stock || r.quantity) || 50
+          const description = r.description || ''
+
+          if (!name) { errors.push({ row: rowNum, error: "Missing product name" }); return }
+          if (!category || !['electrical', 'plumbing', 'carpentry'].includes(category.toLowerCase())) {
+            errors.push({ row: rowNum, error: `Invalid category "${category}". Must be electrical, plumbing, or carpentry` }); return
+          }
+          if (isNaN(price) || price <= 0) { errors.push({ row: rowNum, error: "Invalid or missing price" }); return }
+
+          const cat = category.toLowerCase()
+          if (!seller.categories.includes(cat)) {
+            errors.push({ row: rowNum, error: `Category "${cat}" not in your registered categories` }); return
+          }
+
+          results.push({ name, brand, category: cat, description, price, stock, seller: seller._id })
+        })
+        .on("end", resolve)
+        .on("error", reject)
+    })
+
+    if (results.length === 0) {
+      return res.status(400).json({ success: false, message: "No valid products found in CSV", errors })
+    }
+
+    const inserted = await Product.insertMany(results)
+
+    res.status(201).json({
+      success: true,
+      message: `Successfully uploaded ${inserted.length} products`,
+      productsCreated: inserted.length,
+      errors: errors.length > 0 ? errors : undefined,
+    })
+  } catch (error) {
+    console.error("CSV upload error:", error)
+    res.status(500).json({ success: false, message: "Failed to process CSV upload" })
   }
 }
 

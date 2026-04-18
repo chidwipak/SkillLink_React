@@ -76,7 +76,7 @@ exports.getPendingRequests = async (req, res) => {
       })
       .populate({
         path: "pendingRequests.seller",
-        select: "businessName shopAddress shopName user",
+        select: "businessName shopAddress shopName shopLocation user",
         populate: { path: "user", select: "name phone address" },
       })
 
@@ -137,8 +137,16 @@ exports.acceptDeliveryRequest = async (req, res) => {
       })
     }
 
-    // Generate 4-digit OTP
+    // Generate 4-digit OTP for final delivery verification
     const otp = generateOTP()
+
+    // Generate pickup OTPs for each unique seller in the order
+    const uniqueSellers = [...new Set(order.items.map(item => item.seller?.toString()))]
+    for (const item of order.items) {
+      item.pickupOTP = generateOTP()
+      item.pickupOTPVerified = false
+      item.handedToDelivery = false
+    }
 
     // Update order
     order.deliveryPerson = deliveryPerson._id
@@ -146,7 +154,7 @@ exports.acceptDeliveryRequest = async (req, res) => {
     order.deliveryOTP = otp
     order.trackingUpdates.push({
       status: "assigned_delivery",
-      message: `Delivery partner assigned. Waiting for pickup from seller.`,
+      message: `Delivery partner assigned. Waiting for pickup from ${uniqueSellers.length > 1 ? uniqueSellers.length + ' sellers' : 'seller'}.`,
       timestamp: new Date(),
     })
     await order.save()
@@ -230,7 +238,7 @@ exports.getActiveDelivery = async (req, res) => {
       })
       .populate({
         path: "items.seller",
-        select: "businessName shopAddress shopName user",
+        select: "businessName shopAddress shopName shopLocation user",
         populate: { path: "user", select: "name phone address" },
       })
 
