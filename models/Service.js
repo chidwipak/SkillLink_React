@@ -26,4 +26,9 @@ const serviceSchema = new mongoose.Schema({
   },
 })
 
+// DB Optimization: Indexes for service search and filtering
+serviceSchema.index({ category: 1 })
+serviceSchema.index({ category: 1, name: 1 })
+serviceSchema.index({ name: "text", description: "text" })
+
 module.exports = mongoose.model("Service", serviceSchema)

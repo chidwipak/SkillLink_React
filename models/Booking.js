@@ -51,6 +51,7 @@ const bookingSchema = new mongoose.Schema({
       type: Boolean,
       default: false,
     },
+    lastUpdated: Date,
   },
   workerLocation: {
     latitude: Number,
@@ -79,6 +80,36 @@ const bookingSchema = new mongoose.Schema({
     max: 5,
   },
   review: String,
+  cancellationReason: String,
+  // Broadcast booking fields
+  isBroadcast: {
+    type: Boolean,
+    default: false,
+  },
+  broadcastGroup: {
+    type: String, // UUID to group related broadcast bookings
+  },
+  acceptedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Worker",
+  },
+  broadcastStatus: {
+    type: String,
+    enum: ["active", "accepted", "auto-rejected"],
+    default: "active",
+  },
+  // Track workers who rejected this booking (for fallback re-booking)
+  rejectedWorkers: [{
+    worker: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Worker",
+    },
+    reason: String,
+    rejectedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  }],
   statusHistory: [
     {
       status: String,
@@ -98,6 +129,13 @@ const bookingSchema = new mongoose.Schema({
     default: Date.now,
   },
 })
+
+// DB Optimization: Indexes for booking queries (customer/worker dashboards)
+bookingSchema.index({ customer: 1, status: 1 })
+bookingSchema.index({ worker: 1, status: 1 })
+bookingSchema.index({ status: 1, createdAt: -1 })
+bookingSchema.index({ date: 1, status: 1 })
+bookingSchema.index({ broadcastGroup: 1 })
 
 // Update the updatedAt field before saving
 bookingSchema.pre("save", function (next) {

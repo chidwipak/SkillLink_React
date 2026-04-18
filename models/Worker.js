@@ -28,6 +28,9 @@ const workerSchema = new mongoose.Schema({
   professionalPhone: String,
   idNumber: String,
   idProofDocument: String,
+  aadharNumber: String,
+  panNumber: String,
+  documents: [String], // Array of document file paths (Aadhar, PAN, etc.)
   pricing: [pricingSchema],
   rating: {
     type: Number,
@@ -78,5 +81,11 @@ const workerSchema = new mongoose.Schema({
     sunday: { isAvailable: Boolean, from: String, to: String },
   },
 })
+
+// DB Optimization: Indexes for worker lookups and availability queries
+workerSchema.index({ user: 1 }, { unique: true })
+workerSchema.index({ serviceCategory: 1, isAvailable: 1, isVerified: 1 })
+workerSchema.index({ rating: -1 })
+workerSchema.index({ isVerified: 1, isAvailable: 1 })
 
 module.exports = mongoose.model("Worker", workerSchema)

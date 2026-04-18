@@ -15,6 +15,9 @@ const deliveryPersonSchema = new mongoose.Schema({
   vehicleNumber: {
     type: String,
   },
+  drivingLicense: String,
+  aadharNumber: String,
+  documents: [String], // Array of document file paths (Aadhar, License, etc.)
   isAvailable: {
     type: Boolean,
     default: true,
@@ -72,6 +75,11 @@ const deliveryPersonSchema = new mongoose.Schema({
     default: Date.now,
   },
 })
+
+// DB Optimization: Indexes for delivery person lookups
+deliveryPersonSchema.index({ user: 1 }, { unique: true })
+deliveryPersonSchema.index({ isAvailable: 1, isVerified: 1 })
+deliveryPersonSchema.index({ rating: -1 })
 
 deliveryPersonSchema.pre("save", function (next) {
   this.updatedAt = new Date()

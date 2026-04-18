@@ -24,11 +24,28 @@ const orderItemSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  isSellerReviewed: {
+    type: Boolean,
+    default: false,
+  },
   seller: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Seller",
     required: true,
   },
+  // Pickup OTP for seller handover (per seller item)
+  pickupOTP: {
+    type: String,
+  },
+  pickupOTPVerified: {
+    type: Boolean,
+    default: false,
+  },
+  handedToDelivery: {
+    type: Boolean,
+    default: false,
+  },
+  handedAt: Date,
 })
 
 const orderSchema = new mongoose.Schema({
@@ -139,6 +156,14 @@ const orderSchema = new mongoose.Schema({
     default: Date.now,
   },
 })
+
+// DB Optimization: Indexes for order queries (customer/seller/delivery dashboards)
+orderSchema.index({ customer: 1, status: 1 })
+orderSchema.index({ deliveryPerson: 1, status: 1 })
+orderSchema.index({ status: 1, createdAt: -1 })
+orderSchema.index({ "items.seller": 1, status: 1 })
+orderSchema.index({ orderNumber: 1 })
+orderSchema.index({ paymentStatus: 1 })
 
 // Generate order number and orderId, update the updatedAt field before saving
 orderSchema.pre("save", function (next) {

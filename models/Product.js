@@ -59,4 +59,10 @@ const productSchema = new mongoose.Schema({
   },
 })
 
+// DB Optimization: Indexes for product search and filtering
+productSchema.index({ seller: 1 })
+productSchema.index({ category: 1, price: 1 })
+productSchema.index({ name: "text", description: "text", brand: "text" })
+productSchema.index({ createdAt: -1 })
+
 module.exports = mongoose.model("Product", productSchema)

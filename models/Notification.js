@@ -26,6 +26,14 @@ const notificationSchema = new mongoose.Schema({
   link: {
     type: String,
   },
+  actionType: {
+    type: String,
+    enum: ["none", "rebook", "broadcast", "view"],
+    default: "none",
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed, // Flexible JSON data (e.g. suggested workers, service info)
+  },
   relatedId: {
     type: mongoose.Schema.Types.ObjectId,
   },

@@ -28,6 +28,18 @@ const sellerSchema = new mongoose.Schema({
   businessEmail: String,
   businessPhone: String,
   gstNumber: String,
+  panNumber: String,
+  aadharNumber: String,
+  businessRegistrationNumber: String,
+  businessLicense: String,
+  shopLocation: {
+    address: String,
+    city: String,
+    state: String,
+    pincode: String,
+    latitude: Number,
+    longitude: Number,
+  },
   yearsEstablished: {
     type: Number,
     default: 0,
@@ -36,6 +48,7 @@ const sellerSchema = new mongoose.Schema({
     exterior: String,
     interior: String,
   },
+  documents: [String], // Array of document file paths (Aadhar, PAN, License, etc.)
   categories: [
     {
       type: String,
@@ -84,5 +97,11 @@ const sellerSchema = new mongoose.Schema({
     bankName: String,
   },
 })
+
+// DB Optimization: Indexes for seller lookups and filtering
+sellerSchema.index({ user: 1 }, { unique: true })
+sellerSchema.index({ isVerified: 1 })
+sellerSchema.index({ categories: 1 })
+sellerSchema.index({ rating: -1 })
 
 module.exports = mongoose.model("Seller", sellerSchema)

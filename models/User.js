@@ -27,8 +27,17 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ["customer", "worker", "seller", "delivery", "admin"],
+    enum: ["customer", "worker", "seller", "delivery", "admin", "verifier"],
     default: "customer",
+  },
+  verification_status: {
+    type: String,
+    enum: ["Pending", "Approved", "Rejected"],
+    default: "Approved",
+  },
+  rejection_feedback: {
+    type: String,
+    default: null,
   },
   address: addressSchema,
   addresses: [addressSchema], // Multiple addresses for customers
@@ -76,5 +85,11 @@ const userSchema = new mongoose.Schema({
     },
   ],
 })
+
+// DB Optimization: Indexes for frequently queried fields
+userSchema.index({ email: 1 }, { unique: true })
+userSchema.index({ role: 1, verification_status: 1 })
+userSchema.index({ role: 1, createdAt: -1 })
+userSchema.index({ isEmailVerified: 1 })
 
 module.exports = mongoose.model("User", userSchema)
