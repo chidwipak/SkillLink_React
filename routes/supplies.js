@@ -28,19 +28,33 @@ const upload = multer({
   },
 })
 
+// CSV upload multer (accepts .csv files, stored in memory)
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype === 'text/csv' || path.extname(file.originalname).toLowerCase() === '.csv') {
+      return cb(null, true)
+    }
+    cb(new Error("Only CSV files are allowed"))
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+})
+
 // Seller routes - require authentication and seller role (MUST BE BEFORE /:id)
 router.get("/my-products", authenticateToken, authorize("seller"), productController.getMyProducts)
+router.post("/csv-upload", authenticateToken, authorize("seller"), csvUpload.single("csvFile"), productController.csvUploadProducts)
 router.post("/", authenticateToken, authorize("seller"), upload.array("images", 5), productController.createProduct)
 router.put("/:id", authenticateToken, authorize("seller"), upload.array("images", 5), productController.updateProduct)
 router.put("/:id/price", authenticateToken, authorize("seller"), productController.updateProductPrice)
 router.put("/:id/stock", authenticateToken, authorize("seller"), productController.toggleProductStock)
 router.delete("/:id", authenticateToken, authorize("seller"), productController.deleteProduct)
 
-// Public routes
-router.get("/", productController.getAllProducts)
-router.get("/unique", productController.getUniqueProducts)
-router.get("/product/:name", productController.getProductByName)
-router.get("/sellers/:name", productController.getProductSellers)
-router.get("/:id", productController.getProductById)
+// Public routes (cached for performance)
+const { cacheResponse } = require("../middleware/cache")
+router.get("/", cacheResponse({ ttl: 3 * 60 * 1000 }), productController.getAllProducts)
+router.get("/unique", cacheResponse({ ttl: 3 * 60 * 1000 }), productController.getUniqueProducts)
+router.get("/product/:name", cacheResponse({ ttl: 2 * 60 * 1000 }), productController.getProductByName)
+router.get("/sellers/:name", cacheResponse({ ttl: 2 * 60 * 1000 }), productController.getProductSellers)
+router.get("/:id", cacheResponse({ ttl: 2 * 60 * 1000 }), productController.getProductById)
 
 module.exports = router
