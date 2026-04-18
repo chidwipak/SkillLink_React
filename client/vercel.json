@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://your-backend-url.onrender.com/api/$1"
+    },
+    {
+      "src": "/socket.io/(.*)",
+      "dest": "https://your-backend-url.onrender.com/socket.io/$1"
+    },
+    {
+      "src": "/uploads/(.*)",
+      "dest": "https://your-backend-url.onrender.com/uploads/$1"
+    },
+    {
+      "src": "/images/(.*)",
+      "dest": "https://your-backend-url.onrender.com/images/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
