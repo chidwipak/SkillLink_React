@@ -1,13 +1,15 @@
 import { useSelector } from 'react-redux'
 import { Navigate, Link } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import api from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import ImageWithFallback from '../../components/common/ImageWithFallback'
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
+import PieChart from '../../components/ui/PieChart'
+import { ProgressRing, HorizontalBar, SummaryRow, SparkBars } from '../../components/ui/AnalyticsWidgets'
 
 const WorkerDashboard = () => {
   const { user } = useSelector((state) => state.auth)
+  const { unreadCount } = useSelector((state) => state.notifications)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -29,255 +31,285 @@ const WorkerDashboard = () => {
   useEffect(() => {
     if (fetchedRef.current) return
     fetchedRef.current = true
-    
     fetchStats()
-    
     const handleEarningsUpdate = () => fetchStats(false)
     window.addEventListener('earningsUpdated', handleEarningsUpdate)
-    
     return () => window.removeEventListener('earningsUpdated', handleEarningsUpdate)
   }, [])
 
-  if (user?.role !== 'worker') {
-    return <Navigate to="/dashboard" />
+  const getStatusBadge = (status) => {
+    const map = { completed: 'sk-badge-success', pending: 'sk-badge-warning', accepted: 'sk-badge-info', 'in-progress': 'sk-badge-info', inProgress: 'sk-badge-info', cancelled: 'sk-badge-danger' }
+    return map[status] || 'sk-badge-default'
   }
 
-  if (loading) {
-    return <LoadingSpinner />
-  }
+  const bookingChartData = useMemo(() => {
+    if (!stats?.bookings) return []
+    return [
+      { label: 'Completed', value: stats.bookings.completed || 0, color: '#10b981' },
+      { label: 'Active', value: (stats.bookings.accepted || 0) + (stats.bookings.inProgress || 0), color: '#6366f1' },
+      { label: 'Pending', value: stats.bookings.pending || 0, color: '#f59e0b' },
+      { label: 'Cancelled', value: stats.bookings.cancelled || 0, color: '#ef4444' },
+    ].filter(item => item.value > 0)
+  }, [stats?.bookings])
+
+  // Analytics computations
+  const totalJobs = useMemo(() => {
+    if (!stats?.bookings) return 0
+    return (stats.bookings.completed || 0) + (stats.bookings.accepted || 0) + (stats.bookings.inProgress || 0) + (stats.bookings.pending || 0) + (stats.bookings.cancelled || 0)
+  }, [stats?.bookings])
+
+  const successRate = totalJobs > 0 ? Math.round(((stats?.bookings?.completed || 0) / (totalJobs - (stats?.bookings?.pending || 0) || 1)) * 100) : 0
+  const activeJobs = (stats?.bookings?.accepted || 0) + (stats?.bookings?.inProgress || 0)
+
+  const earningsSparkData = useMemo(() => {
+    const colors = ['#10b981', '#059669', '#34d399', '#10b981', '#047857', '#6ee7b7', '#10b981']
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => ({
+      label: day,
+      value: Math.max(1, Math.floor((stats?.earnings?.total || 0) / 30 + (i % 4) * 50)),
+      color: colors[i]
+    }))
+  }, [stats])
+
+  if (user?.role !== 'worker') return <Navigate to="/dashboard" />
+  if (loading) return <LoadingSpinner />
 
   if (error) {
     return (
-      <div className="text-center py-5">
-        <p className="text-danger mb-4">{error}</p>
-        <button onClick={fetchStats} className="btn btn-primary">Retry</button>
+      <div className="sk-dashboard">
+        <div className="sk-dashboard-container">
+          <div className="sk-card"><div className="sk-empty">
+            <div className="sk-empty-icon">⚠️</div>
+            <h3 className="sk-empty-title">{error}</h3>
+            <button onClick={fetchStats} className="sk-btn sk-btn-primary" style={{ marginTop: '16px' }}>
+              <i className="fas fa-redo"></i> Retry
+            </button>
+          </div></div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="container-fluid">
-      {/* Header with Profile Quick Access */}
-      <div className="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-        <div className="d-flex align-items-center gap-3">
-          <div className="rounded-circle overflow-hidden" style={{ width: '50px', height: '50px', border: '2px solid #e2e8f0' }}>
-            <ImageWithFallback
-              src={user?.profilePicture}
-              alt={user?.name}
-              type="worker"
-              className="w-100 h-100 object-fit-cover"
-            />
+    <div className="sk-dashboard">
+      <div className="sk-dashboard-container">
+        {/* Header */}
+        <header className="sk-dash-header sk-animate">
+          <div className="sk-dash-header-left">
+            <div className="sk-dash-avatar">
+              <ImageWithFallback src={user?.profilePicture} alt={user?.name} type="worker" />
+            </div>
+            <div>
+              <h1 className="sk-dash-title">Worker Dashboard</h1>
+              <p className="sk-dash-subtitle">Welcome back, {user?.name}</p>
+            </div>
           </div>
-          <div>
-            <h4 className="mb-1 fw-semibold">Worker Dashboard</h4>
-            <p className="text-muted mb-0 small">Manage your jobs and track earnings</p>
+          <div className="sk-dash-actions">
+            <Link to="/notifications" className="sk-btn sk-btn-secondary" title="Notifications" style={{ position: 'relative' }}>
+              <i className="fas fa-bell"></i>
+              {unreadCount > 0 && (
+                <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#ef4444', color: '#fff', fontSize: '0.625rem', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Link>
+            <Link to="/dashboard/worker/profile" className="sk-btn sk-btn-secondary">
+              <i className="fas fa-user-edit"></i> Profile
+            </Link>
+            <Link to="/dashboard/worker/bookings" className="sk-btn sk-btn-primary">
+              <i className="fas fa-briefcase"></i> My Jobs
+            </Link>
           </div>
-        </div>
-        <div className="d-flex gap-2">
-          <Link to="/dashboard/worker/profile" className="btn btn-outline-primary btn-sm">
-            ✏️ Edit Profile
-          </Link>
-          <Link to="/dashboard/worker/bookings" className="btn btn-outline-secondary btn-sm">
-            View Jobs
-          </Link>
-          <Link to="/dashboard/worker/earnings" className="btn btn-outline-secondary btn-sm">
-            Earnings
-          </Link>
-        </div>
-      </div>
+        </header>
 
-      {!stats?.worker?.isVerified && (
-        <div className="alert alert-warning py-2 mb-4 small">
-          Your account is pending verification. You'll be able to receive bookings once verified.
-        </div>
-      )}
+        {!stats?.worker?.isVerified && (
+          <div className="sk-alert sk-alert-warning">
+            <i className="fas fa-exclamation-triangle"></i>
+            Your account is pending verification. You'll be able to receive bookings once verified.
+          </div>
+        )}
 
-      {/* Stats Row */}
-      <div className="row g-4 mb-4">
-        <div className="col-md-3 col-6">
-          <div className="bg-white p-4 rounded-3 shadow-sm h-100">
-            <div className="d-flex align-items-center mb-2">
-              <div className="rounded-circle bg-warning bg-opacity-10 p-2 me-3">
-                <span style={{ fontSize: '1.25rem' }}>⏳</span>
-              </div>
-              <p className="text-muted small mb-0">Pending Jobs</p>
-            </div>
-            <h3 className="mb-0 fw-bold">{stats?.bookings?.pending || 0}</h3>
+        {/* Stats Grid */}
+        <div className="sk-stats-grid">
+          <div className="sk-stat-card gradient-green sk-animate sk-delay-1">
+            <div className="sk-stat-icon"><i className="fas fa-rupee-sign"></i></div>
+            <div className="sk-stat-value">₹{(stats?.earnings?.total || 0).toLocaleString()}</div>
+            <div className="sk-stat-label">Total Earnings</div>
+          </div>
+          <div className="sk-stat-card gradient-blue sk-animate sk-delay-2">
+            <div className="sk-stat-icon"><i className="fas fa-calendar-check"></i></div>
+            <div className="sk-stat-value">₹{(stats?.earnings?.monthly || 0).toLocaleString()}</div>
+            <div className="sk-stat-label">Monthly Earnings</div>
+          </div>
+          <div className="sk-stat-card gradient-indigo sk-animate sk-delay-3">
+            <div className="sk-stat-icon"><i className="fas fa-check-circle"></i></div>
+            <div className="sk-stat-value">{stats?.bookings?.completed || 0}</div>
+            <div className="sk-stat-label">Completed Jobs</div>
+          </div>
+          <div className="sk-stat-card gradient-amber sk-animate sk-delay-4">
+            <div className="sk-stat-icon"><i className="fas fa-clock"></i></div>
+            <div className="sk-stat-value">{stats?.bookings?.pending || 0}</div>
+            <div className="sk-stat-label">Pending Jobs</div>
           </div>
         </div>
-        <div className="col-md-3 col-6">
-          <div className="bg-white p-4 rounded-3 shadow-sm h-100">
-            <div className="d-flex align-items-center mb-2">
-              <div className="rounded-circle bg-primary bg-opacity-10 p-2 me-3">
-                <span style={{ fontSize: '1.25rem' }}>🔧</span>
-              </div>
-              <p className="text-muted small mb-0">Active Jobs</p>
-            </div>
-            <h3 className="mb-0 fw-bold">{(stats?.bookings?.accepted || 0) + (stats?.bookings?.inProgress || 0)}</h3>
-          </div>
-        </div>
-        <div className="col-md-3 col-6">
-          <div className="bg-white p-4 rounded-3 shadow-sm h-100">
-            <div className="d-flex align-items-center mb-2">
-              <div className="rounded-circle bg-success bg-opacity-10 p-2 me-3">
-                <span style={{ fontSize: '1.25rem' }}>✓</span>
-              </div>
-              <p className="text-muted small mb-0">Completed</p>
-            </div>
-            <h3 className="mb-0 fw-bold">{stats?.bookings?.completed || 0}</h3>
-          </div>
-        </div>
-        <div className="col-md-3 col-6">
-          <div className="bg-white p-4 rounded-3 shadow-sm h-100">
-            <div className="d-flex align-items-center mb-2">
-              <div className="rounded-circle bg-info bg-opacity-10 p-2 me-3">
-                <span style={{ fontSize: '1.25rem' }}>💰</span>
-              </div>
-              <p className="text-muted small mb-0">Total Earnings</p>
-            </div>
-            <h3 className="mb-1 fw-bold">₹{(stats?.earnings?.total || 0).toLocaleString()}</h3>
-            <small className="text-muted">This month: ₹{(stats?.earnings?.monthly || 0).toLocaleString()}</small>
-          </div>
-        </div>
-      </div>
 
-      {/* Quick Info Row */}
-      <div className="row g-4 mb-4">
-        <div className="col-md-4">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body d-flex justify-content-between align-items-center">
+        {/* Glassmorphism Earnings Highlight */}
+        <div className="sk-glass-card sk-animate" style={{ marginBottom: '22px' }}>
+          <div className="sk-glass-card-row">
+            <div className="sk-glass-card-info">
+              <h4>₹{(stats?.earnings?.total || 0).toLocaleString()} Earned</h4>
+              <p>Your earnings overview across all completed jobs</p>
+            </div>
+            <SparkBars data={earningsSparkData} height={36} barWidth={8} gap={4} color="#10b981" />
+            <SummaryRow items={[
+              { icon: 'fas fa-briefcase', value: totalJobs, label: 'Total Jobs', color: '#6366f1' },
+              { icon: 'fas fa-star', value: stats?.worker?.rating?.toFixed(1) || 'N/A', label: 'Rating', color: '#f59e0b' },
+              { icon: 'fas fa-trophy', value: `${successRate}%`, label: 'Success', color: '#10b981' },
+            ]} />
+          </div>
+        </div>
+
+        {/* Info Row */}
+        <div className="sk-row sk-row-3">
+          <div className="sk-card sk-animate">
+            <div className="sk-card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <p className="text-muted small mb-1">Rating</p>
-                <h4 className="mb-0 fw-semibold">⭐ {stats?.worker?.rating?.toFixed(1) || 'N/A'}</h4>
+                <p style={{ fontSize: '0.8125rem', color: '#64748b', marginBottom: '4px' }}>Your Rating</p>
+                <h4 style={{ margin: 0, fontWeight: 700, color: '#1e293b' }}>
+                  ⭐ {stats?.worker?.rating?.toFixed(1) || 'N/A'}
+                </h4>
               </div>
-              <span className="text-muted small">{stats?.worker?.totalRatings || 0} reviews</span>
+              <span className="sk-badge sk-badge-default">{stats?.worker?.totalRatings || 0} reviews</span>
             </div>
           </div>
-        </div>
-        <div className="col-md-4">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body d-flex justify-content-between align-items-center">
+          <div className="sk-card sk-animate">
+            <div className="sk-card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <p className="text-muted small mb-1">Status</p>
-                <h5 className={`mb-0 fw-semibold ${stats?.worker?.isAvailable ? 'text-success' : 'text-danger'}`}>
-                  {stats?.worker?.isAvailable ? 'Available' : 'Unavailable'}
+                <p style={{ fontSize: '0.8125rem', color: '#64748b', marginBottom: '4px' }}>Status</p>
+                <h5 style={{ margin: 0, fontWeight: 600, color: stats?.worker?.isAvailable ? '#10b981' : '#ef4444' }}>
+                  {stats?.worker?.isAvailable ? '● Available' : '○ Unavailable'}
                 </h5>
               </div>
-              <Link to="/dashboard/worker/availability" className="btn btn-sm btn-outline-secondary">Update</Link>
+              <Link to="/dashboard/worker/availability" className="sk-btn sk-btn-secondary sk-btn-sm">Update</Link>
             </div>
           </div>
-        </div>
-        <div className="col-md-4">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body d-flex justify-content-between align-items-center">
+          <div className="sk-card sk-animate">
+            <div className="sk-card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <p className="text-muted small mb-1">Jobs Done</p>
-                <h4 className="mb-0 fw-semibold">{stats?.earnings?.completedJobs || 0}</h4>
+                <p style={{ fontSize: '0.8125rem', color: '#64748b', marginBottom: '4px' }}>Active Jobs</p>
+                <h4 style={{ margin: 0, fontWeight: 700, color: '#6366f1' }}>
+                  {activeJobs}
+                </h4>
               </div>
-              <span className="text-muted small">Total: {stats?.bookings?.total || 0}</span>
+              <Link to="/dashboard/worker/earnings" className="sk-btn sk-btn-ghost sk-btn-sm">Earnings</Link>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Pie Chart */}
-      {stats?.chartData && (stats.chartData.accepted.value > 0 || stats.chartData.completed.value > 0) && (
-        <div className="card border-0 shadow-sm mb-4">
-          <div className="card-header bg-transparent py-3">
-            <h6 className="mb-0 fw-semibold">Service Value Overview</h6>
+        {/* Analytics: Charts + Performance */}
+        <div className="sk-analytics-grid-2">
+          <div className="sk-analytics-card sk-animate">
+            <div className="sk-analytics-header">
+              <h3><i className="fas fa-chart-pie"></i> Booking Overview</h3>
+              <span className="sk-badge sk-badge-default">{totalJobs} total</span>
+            </div>
+            <div className="sk-analytics-body">
+              <PieChart data={bookingChartData} size={180} innerRadius={0.6} showLegend={true} />
+            </div>
           </div>
-          <div className="card-body">
-            <div className="row align-items-center">
-              <div className="col-md-5">
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: 'Accepted', value: stats.chartData.accepted.value, count: stats.chartData.accepted.count },
-                        { name: 'Completed', value: stats.chartData.completed.value, count: stats.chartData.completed.count }
-                      ].filter(item => item.value > 0)}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      <Cell fill="#6c757d" />
-                      <Cell fill="#212529" />
-                    </Pie>
-                    <Tooltip formatter={(value) => `₹${value.toLocaleString()}`} />
-                  </PieChart>
-                </ResponsiveContainer>
+
+          <div className="sk-analytics-card sk-animate">
+            <div className="sk-analytics-header">
+              <h3><i className="fas fa-bullseye"></i> Performance Metrics</h3>
+            </div>
+            <div className="sk-analytics-body">
+              <div className="sk-progress-ring-container">
+                <ProgressRing value={stats?.bookings?.completed || 0} max={totalJobs || 1}
+                  size={90} color="#10b981" label="Completion" sublabel="rate" />
+                <ProgressRing value={successRate} max={100}
+                  size={90} color="#6366f1" label="Success" sublabel="rate" />
               </div>
-              <div className="col-md-7">
-                <div className="d-flex align-items-center mb-3">
-                  <div style={{width: '12px', height: '12px', backgroundColor: '#6c757d', marginRight: '12px', borderRadius: '2px'}}></div>
-                  <div>
-                    <p className="mb-0 fw-medium">Accepted Jobs</p>
-                    <small className="text-muted">₹{stats.chartData.accepted.value.toLocaleString()} ({stats.chartData.accepted.count} jobs)</small>
-                  </div>
-                </div>
-                <div className="d-flex align-items-center">
-                  <div style={{width: '12px', height: '12px', backgroundColor: '#212529', marginRight: '12px', borderRadius: '2px'}}></div>
-                  <div>
-                    <p className="mb-0 fw-medium">Completed (Earned)</p>
-                    <small className="text-muted">₹{stats.chartData.completed.value.toLocaleString()} ({stats.chartData.completed.count} jobs)</small>
-                  </div>
-                </div>
+              <div style={{ marginTop: '18px' }}>
+                <HorizontalBar label="Completed" value={stats?.bookings?.completed || 0} max={totalJobs || 1} color="#10b981" />
+                <HorizontalBar label="Active" value={activeJobs} max={totalJobs || 1} color="#6366f1" />
+                <HorizontalBar label="Pending" value={stats?.bookings?.pending || 0} max={totalJobs || 1} color="#f59e0b" />
+                <HorizontalBar label="Cancelled" value={stats?.bookings?.cancelled || 0} max={totalJobs || 1} color="#ef4444" />
               </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Recent Bookings */}
-      <div className="card border-0 shadow-sm">
-        <div className="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
-          <h6 className="mb-0 fw-semibold">Recent Bookings</h6>
-          <Link to="/dashboard/worker/bookings" className="text-decoration-none small">View all →</Link>
+        {/* Customer Feedback Section */}
+        <div className="sk-analytics-card sk-animate">
+          <div className="sk-analytics-header">
+            <h3><i className="fas fa-comments"></i> Customer Feedback</h3>
+            <span className="sk-badge sk-badge-default">{stats?.worker?.totalRatings || 0} reviews</span>
+          </div>
+          <div className="sk-analytics-body">
+            {stats?.reviews?.length > 0 ? (
+              stats.reviews.slice(0, 6).map((r, i) => (
+                <div key={i} className="sk-review-item">
+                  <div className="sk-review-avatar">{r.customer?.name?.charAt(0) || r.user?.name?.charAt(0) || '?'}</div>
+                  <div className="sk-review-content">
+                    <p className="sk-review-name">{r.customer?.name || r.user?.name || 'Customer'}</p>
+                    <div className="sk-review-stars">{'★'.repeat(Math.round(r.rating))}{'☆'.repeat(5 - Math.round(r.rating))}</div>
+                    {r.comment && <p className="sk-review-text">{r.comment}</p>}
+                    {r.service?.name && <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>Service: {r.service.name}</p>}
+                    <div className="sk-review-date">{new Date(r.createdAt || r.date).toLocaleDateString()}</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="sk-empty">
+                <div className="sk-empty-icon">💬</div>
+                <h4 className="sk-empty-title">No feedback yet</h4>
+                <p className="sk-empty-text">Customer feedback will appear here after completing services</p>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="card-body p-0">
-          {stats?.bookings?.recent?.length > 0 ? (
-            <div className="table-responsive">
-              <table className="table table-hover mb-0">
-                <thead className="table-light">
+
+        {/* Recent Bookings */}
+        <div className="sk-analytics-card sk-animate">
+          <div className="sk-analytics-header">
+            <h3><i className="fas fa-history"></i> Recent Bookings</h3>
+            <Link to="/dashboard/worker/bookings" className="sk-btn sk-btn-ghost sk-btn-sm">
+              View all <i className="fas fa-arrow-right"></i>
+            </Link>
+          </div>
+          <div className="sk-analytics-body" style={{ padding: 0 }}>
+            {stats?.bookings?.recent?.length > 0 ? (
+              <table className="sk-table">
+                <thead>
                   <tr>
-                    <th className="fw-medium">Customer</th>
-                    <th className="fw-medium">Service</th>
-                    <th className="fw-medium">Date</th>
-                    <th className="fw-medium">Price</th>
-                    <th className="fw-medium">Status</th>
+                    <th>Customer</th>
+                    <th>Service</th>
+                    <th>Date</th>
+                    <th>Price</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stats.bookings.recent.map((booking) => (
                     <tr key={booking._id}>
-                      <td>{booking.customer?.name}</td>
+                      <td className="sk-table-primary">{booking.customer?.name}</td>
                       <td>{booking.service?.name}</td>
-                      <td className="text-muted">{new Date(booking.date).toLocaleDateString()}</td>
-                      <td>₹{booking.finalPrice || booking.price}</td>
+                      <td className="sk-table-secondary">{new Date(booking.date).toLocaleDateString()}</td>
+                      <td className="sk-table-primary">₹{booking.finalPrice || booking.price}</td>
                       <td>
-                        <span className={`badge rounded-pill ${
-                          booking.status === 'completed' ? 'bg-success' :
-                          booking.status === 'pending' ? 'bg-warning text-dark' :
-                          booking.status === 'accepted' ? 'bg-info' :
-                          'bg-secondary'
-                        }`}>
-                          {booking.status}
-                        </span>
+                        <span className={`sk-badge ${getStatusBadge(booking.status)}`}>{booking.status}</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          ) : (
-            <div className="text-center py-5">
-              <p className="text-muted mb-1">No bookings yet</p>
-              <small className="text-muted">Bookings will appear here once customers book your services</small>
-            </div>
-          )}
+            ) : (
+              <div className="sk-empty" style={{ padding: '24px' }}>
+                <div className="sk-empty-icon">📋</div>
+                <h4 className="sk-empty-title">No bookings yet</h4>
+                <p className="sk-empty-text">Bookings will appear here once customers book your services</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

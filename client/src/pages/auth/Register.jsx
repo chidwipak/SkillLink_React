@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { register } from '../../store/slices/authSlice'
+import { useCelebration } from '../../contexts/CelebrationContext'
 import toast from 'react-hot-toast'
 import '../../styles/auth.css'
 
@@ -41,11 +42,12 @@ const Register = () => {
   const { isLoading } = useSelector((state) => state.auth)
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const { celebrate } = useCelebration()
 
   // Real-time validation
   useEffect(() => {
     const newErrors = {}
-    
+
     // Name validation - only alphabets and spaces
     if (touched.name) {
       if (!formData.name) {
@@ -56,7 +58,7 @@ const Register = () => {
         newErrors.name = 'Name must be at least 2 characters'
       }
     }
-    
+
     // Email validation
     if (touched.email) {
       if (!formData.email) {
@@ -65,7 +67,7 @@ const Register = () => {
         newErrors.email = 'Please enter a valid email address'
       }
     }
-    
+
     // Phone validation - exactly 10 digits
     if (touched.phone) {
       if (!formData.phone) {
@@ -74,7 +76,7 @@ const Register = () => {
         newErrors.phone = 'Phone must be exactly 10 digits'
       }
     }
-    
+
     // Password validation
     if (touched.password) {
       if (!formData.password) {
@@ -89,7 +91,7 @@ const Register = () => {
         newErrors.password = 'Password must contain at least 1 special character (@$!%*?&#)'
       }
     }
-    
+
     // Confirm password validation
     if (touched.confirmPassword) {
       if (!formData.confirmPassword) {
@@ -98,7 +100,7 @@ const Register = () => {
         newErrors.confirmPassword = 'Passwords do not match'
       }
     }
-    
+
     setErrors(newErrors)
   }, [formData, touched])
 
@@ -183,7 +185,7 @@ const Register = () => {
       submitData.append('password', formData.password)
       submitData.append('phone', formData.phone)
       submitData.append('role', formData.role)
-      
+
       if (formData.profilePicture) {
         submitData.append('profilePicture', formData.profilePicture)
       }
@@ -227,6 +229,7 @@ const Register = () => {
       }
 
       await dispatch(register(submitData)).unwrap()
+      celebrate({ count: 200 })
       toast.success('Registration successful! 🎉 Please verify your email.')
       // Store email for verification page
       localStorage.setItem('pendingVerificationEmail', formData.email)
@@ -250,9 +253,9 @@ const Register = () => {
   ]
 
   const vehicleTypes = [
-    { value: 'bike', label: 'Bike' },
-    { value: 'scooter', label: 'Scooter' },
-    { value: 'bicycle', label: 'Bicycle' },
+    { value: 'bike', label: 'Bike', icon: '🏍️' },
+    { value: 'scooter', label: 'Scooter', icon: '🛵' },
+    { value: 'bicycle', label: 'Bicycle', icon: '🚲' },
   ]
 
   const needsExtraStep = ['worker', 'seller', 'delivery'].includes(formData.role)
@@ -264,12 +267,12 @@ const Register = () => {
   const handleNextStep = () => {
     // Touch all fields to show errors
     setTouched({ name: true, email: true, phone: true, password: true, confirmPassword: true })
-    
+
     if (!formData.profilePicture) {
       toast.error('Profile picture is required')
       return
     }
-    
+
     if (!canProceedToStep2()) {
       toast.error('Please fix all errors before continuing')
       return
@@ -328,38 +331,30 @@ const Register = () => {
 
   return (
     <div className="auth-page">
-      {/* Animated background orbs */}
-      <div className="orb orb-1"></div>
-      <div className="orb orb-2"></div>
-      <div className="orb orb-3"></div>
-      
-      <div className="container min-vh-100 d-flex align-items-center justify-content-center py-5">
-        <div className="row justify-content-center w-100">
-          <div className="col-12 col-md-10 col-lg-8 col-xl-6">
-            <div className="auth-card p-4 p-md-5">
-              {/* Logo */}
-              <div className="text-center mb-4">
-                <div className="auth-logo mx-auto">
-                  <span>🔧</span>
-                </div>
-              </div>
-              
-              {/* Title */}
-              <h1 className="auth-title text-center">Create Account</h1>
-              <p className="auth-subtitle text-center mb-4">
-                {step === 1 ? 'Join SkillLink today' : `Complete your ${formData.role} profile`}
-              </p>
+      <div className="auth-card register-card">
+        {/* Logo */}
+        <div className="text-center mb-3">
+          <div className="auth-logo mx-auto">
+            <span>🔧</span>
+          </div>
+        </div>
 
-              {/* Step indicator */}
-              {needsExtraStep && (
-                <div className="step-indicator">
-                  <div className={`step-dot ${step >= 1 ? 'active' : ''} ${step > 1 ? 'completed' : ''}`}></div>
-                  <div className={`step-line ${step > 1 ? 'completed' : ''}`}></div>
-                  <div className={`step-dot ${step >= 2 ? 'active' : ''}`}></div>
-                </div>
-              )}
+        {/* Title */}
+        <h1 className="auth-title text-center">Create Account</h1>
+        <p className="auth-subtitle text-center mb-3">
+          {step === 1 ? 'Join SkillLink today' : `Complete your ${formData.role} profile`}
+        </p>
 
-              <form onSubmit={handleSubmit}>
+        {/* Step indicator */}
+        {needsExtraStep && (
+          <div className="step-indicator">
+            <div className={`step-dot ${step >= 1 ? 'active' : ''} ${step > 1 ? 'completed' : ''}`}></div>
+            <div className={`step-line ${step > 1 ? 'completed' : ''}`}></div>
+            <div className={`step-dot ${step >= 2 ? 'active' : ''}`}></div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
                 {/* STEP 1: Basic Information */}
                 {step === 1 && (
                   <div className="form-section">
@@ -373,7 +368,7 @@ const Register = () => {
                         )}
                       </div>
                       <label className="profile-upload-btn">
-                        <span style={{ fontSize: '1rem' }}>📷</span>
+                        <span style={{ fontSize: '0.8rem' }}>📷</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -382,8 +377,8 @@ const Register = () => {
                         />
                       </label>
                     </div>
-                    <p className="text-center mb-4" style={{ color: '#64748b', fontSize: '0.85rem' }}>
-                      Upload profile photo <span style={{ color: '#ef4444' }}>*</span>
+                    <p className="text-center mb-3" style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                      Profile photo <span style={{ color: '#ef4444' }}>*</span>
                     </p>
 
                     {/* Name Input */}
@@ -460,8 +455,8 @@ const Register = () => {
                     </div>
 
                     {/* Role Selection */}
-                    <div className="mb-4">
-                      <label style={{ color: '#475569', fontSize: '0.9rem', marginBottom: '12px', display: 'block', fontWeight: '500' }}>
+                    <div className="mb-3">
+                      <label style={{ color: '#475569', fontSize: '0.85rem', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                         I want to join as
                       </label>
                       <div className="role-selector">
@@ -509,9 +504,8 @@ const Register = () => {
                           {[1, 2, 3, 4].map((level) => (
                             <div
                               key={level}
-                              className={`strength-bar ${getPasswordStrength() >= level ? 'active' : ''} ${
-                                getPasswordStrength() <= 1 ? 'weak' : getPasswordStrength() <= 2 ? 'medium' : 'strong'
-                              }`}
+                              className={`strength-bar ${getPasswordStrength() >= level ? 'active' : ''} ${getPasswordStrength() <= 1 ? 'weak' : getPasswordStrength() <= 2 ? 'medium' : 'strong'
+                                }`}
                             ></div>
                           ))}
                         </div>
@@ -544,7 +538,7 @@ const Register = () => {
 
                     {/* Submit/Continue Button */}
                     {needsExtraStep ? (
-                      <button 
+                      <button
                         type="button"
                         className="auth-btn auth-btn-primary"
                         onClick={handleNextStep}
@@ -552,8 +546,8 @@ const Register = () => {
                         Continue →
                       </button>
                     ) : (
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         className="auth-btn auth-btn-primary"
                         disabled={isLoading}
                       >
@@ -580,15 +574,15 @@ const Register = () => {
                           <span style={{ fontSize: '1.2rem' }}>👷</span>
                           <div>
                             <strong>Worker Registration</strong>
-                            <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.8 }}>
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
                               Please provide your professional details for verification.
                             </p>
                           </div>
                         </div>
 
                         {/* Service Category */}
-                        <div className="mb-4">
-                          <label style={{ color: '#475569', fontSize: '0.9rem', marginBottom: '12px', display: 'block', fontWeight: '500' }}>
+                        <div className="mb-3">
+                          <label style={{ color: '#475569', fontSize: '0.85rem', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                             Service Category
                           </label>
                           <div className="category-grid">
@@ -653,7 +647,7 @@ const Register = () => {
                           <span style={{ fontSize: '1.2rem' }}>🏪</span>
                           <div>
                             <strong>Seller Registration</strong>
-                            <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.8 }}>
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
                               Please provide your business details for verification.
                             </p>
                           </div>
@@ -733,14 +727,14 @@ const Register = () => {
                           <span style={{ fontSize: '1.2rem' }}>🚚</span>
                           <div>
                             <strong>Delivery Partner Registration</strong>
-                            <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.8 }}>
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
                               Please provide your vehicle and license details.
                             </p>
                           </div>
                         </div>
 
-                        <div className="mb-4">
-                          <label style={{ color: '#475569', fontSize: '0.9rem', marginBottom: '12px', display: 'block', fontWeight: '500' }}>
+                        <div className="mb-3">
+                          <label style={{ color: '#475569', fontSize: '0.85rem', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                             Vehicle Type
                           </label>
                           <div className="category-grid">
@@ -790,15 +784,15 @@ const Register = () => {
 
                     {/* Navigation Buttons */}
                     <div className="d-flex gap-3 mt-4">
-                      <button 
+                      <button
                         type="button"
                         className="auth-btn auth-btn-secondary flex-grow-1"
                         onClick={() => setStep(1)}
                       >
                         ← Back
                       </button>
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         className="auth-btn auth-btn-primary flex-grow-1"
                         disabled={isLoading}
                       >
@@ -821,24 +815,21 @@ const Register = () => {
                 </div>
 
                 {/* Login Link */}
-                <div className="text-center" style={{ animation: 'fadeIn 0.8s ease-out 1.1s forwards', opacity: 0 }}>
+                <div className="text-center">
                   <span style={{ color: '#64748b' }}>Already have an account? </span>
                   <Link to="/login" className="auth-link fw-semibold">
                     Sign In
                   </Link>
                 </div>
               </form>
-            </div>
 
-            {/* Footer */}
-            <p className="auth-footer">
-              © 2025 SkillLink. All rights reserved.
-            </p>
+              {/* Footer */}
+              <p className="auth-footer">
+                © 2025 SkillLink. All rights reserved.
+              </p>
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+        )
+      }
 
 export default Register

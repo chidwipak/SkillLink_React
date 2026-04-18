@@ -6,6 +6,12 @@ import toast from 'react-hot-toast'
 class SocketService {
   constructor() {
     this.socket = null
+    this._triggerCelebration = null
+  }
+
+  // Register a celebration callback (called from React context)
+  setCelebrationCallback(fn) {
+    this._triggerCelebration = fn
   }
 
   connect() {
@@ -16,7 +22,19 @@ class SocketService {
       return
     }
 
-    this.socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001', {
+    // Prevent duplicate connections
+    if (this.socket?.connected) {
+      console.log('Socket already connected, skipping')
+      return
+    }
+
+    // Disconnect existing socket before creating a new one
+    if (this.socket) {
+      this.socket.disconnect()
+      this.socket = null
+    }
+
+    this.socket = io(import.meta.env.VITE_SOCKET_URL || '/', {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
@@ -64,19 +82,63 @@ class SocketService {
     // Listen for booking updates
     this.socket.on('booking-updated', (data) => {
       console.log('📅 Booking updated:', data)
-      toast.success('Booking status updated')
+      if (data.status === 'completed') {
+        toast.success('🎉 Service completed successfully!')
+        this._triggerCelebration?.()
+      } else {
+        toast.success('Booking status updated')
+      }
     })
 
     // Listen for order updates
     this.socket.on('order-updated', (data) => {
       console.log('📦 Order updated:', data)
-      toast.success('Order status updated')
+      if (data.status === 'delivered') {
+        toast.success('🎉 Order delivered successfully!')
+        this._triggerCelebration?.()
+      } else {
+        toast.success('Order status updated')
+      }
     })
 
     // Listen for new bookings (for workers)
     this.socket.on('new-booking', (data) => {
       console.log('📅 New booking received:', data)
       toast.success('You have a new booking!', { duration: 5000 })
+    })
+
+    // Listen for booking rejection (for customers) — Fallback mechanism
+    this.socket.on('booking-rejected', (data) => {
+      console.log('❌ Booking rejected:', data)
+      const workerName = data.rejectedBy || 'A worker'
+      const count = data.availableCount || 0
+      const reason = data.reason ? ` — "${data.reason}"` : ''
+
+      toast(
+        (t) => {
+          // Build a simple HTML-like text for the toast
+          const message = `${workerName} declined your booking${reason}. ${
+            count > 0
+              ? `${count} other worker${count > 1 ? 's' : ''} available!`
+              : 'Try again later.'
+          }`
+          return message
+        },
+        {
+          icon: '⚠️',
+          duration: 8000,
+          style: {
+            borderLeft: '4px solid #ef4444',
+            background: '#fef2f2',
+            color: '#991b1b',
+            fontWeight: 500,
+            fontSize: '0.88rem',
+          }
+        }
+      )
+
+      // Refresh notifications in store
+      store.dispatch(fetchNotifications())
     })
 
     // Listen for new orders (for sellers)

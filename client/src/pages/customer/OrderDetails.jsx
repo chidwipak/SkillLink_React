@@ -110,12 +110,19 @@ const OrderDetails = () => {
   const [loading, setLoading] = useState(true)
   const [deliveryPerson, setDeliveryPerson] = useState(null)
   const [deliveryOTP, setDeliveryOTP] = useState(null)
+  const [showOTP, setShowOTP] = useState(false)
   
   // Review modal state
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewItem, setReviewItem] = useState(null)
   const [reviewData, setReviewData] = useState({ rating: 5, comment: '' })
   const [submittingReview, setSubmittingReview] = useState(false)
+  
+  // Seller review state
+  const [showSellerReviewModal, setShowSellerReviewModal] = useState(false)
+  const [reviewSeller, setReviewSeller] = useState(null)
+  const [sellerReviewData, setSellerReviewData] = useState({ rating: 5, comment: '' })
+  const [submittingSellerReview, setSubmittingSellerReview] = useState(false)
 
   useEffect(() => {
     fetchOrderDetails()
@@ -197,6 +204,39 @@ const OrderDetails = () => {
       toast.error(error.response?.data?.message || 'Failed to submit review')
     } finally {
       setSubmittingReview(false)
+    }
+  }
+
+  // Open seller review modal
+  const openSellerReviewModal = (item) => {
+    setReviewSeller(item.seller)
+    setSellerReviewData({ rating: 5, comment: '' })
+    setShowSellerReviewModal(true)
+  }
+
+  // Submit seller review
+  const handleSubmitSellerReview = async () => {
+    if (!reviewSeller || !sellerReviewData.rating) {
+      toast.error('Please provide a rating')
+      return
+    }
+
+    setSubmittingSellerReview(true)
+    try {
+      await api.post('/reviews/seller', {
+        sellerId: reviewSeller._id,
+        orderId: order._id,
+        rating: sellerReviewData.rating,
+        comment: sellerReviewData.comment
+      })
+      toast.success('Seller review submitted successfully!')
+      setShowSellerReviewModal(false)
+      setReviewSeller(null)
+      fetchOrderDetails() // Refresh to show review status
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to submit review')
+    } finally {
+      setSubmittingSellerReview(false)
     }
   }
 
@@ -342,8 +382,19 @@ Thank you for shopping with SkillLink!
               {deliveryOTP && order.status === 'out_for_delivery' && (
                 <div className="col-md-6 text-md-end mt-3 mt-md-0">
                   <p className="mb-1 text-muted">Delivery OTP</p>
-                  <h2 className="text-primary mb-0 font-monospace">{deliveryOTP}</h2>
-                  <small className="text-muted">Share this code with delivery partner</small>
+                  <div className="d-flex align-items-center justify-content-md-end gap-2">
+                    <h2 className="text-primary mb-0 font-monospace">
+                      {showOTP ? deliveryOTP : '****'}
+                    </h2>
+                    <button 
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => setShowOTP(!showOTP)}
+                      title={showOTP ? 'Hide OTP' : 'Show OTP'}
+                    >
+                      <i className={`fas ${showOTP ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                    </button>
+                  </div>
+                  <small className="text-muted">Share this code with delivery partner only at doorstep</small>
                 </div>
               )}
             </div>
@@ -388,17 +439,29 @@ Thank you for shopping with SkillLink!
                     )}
                     {/* Review button for delivered items */}
                     {order.status === 'delivered' && (
-                      <div className="mt-2">
+                      <div className="mt-2 d-flex gap-2 flex-wrap">
                         {item.isReviewed ? (
                           <span className="badge bg-success">
-                            ✓ Reviewed
+                            ✓ Product Reviewed
                           </span>
                         ) : (
                           <button 
                             className="btn btn-sm btn-outline-primary"
                             onClick={() => openReviewModal(item)}
                           >
-                            ⭐ Write a Review
+                            ⭐ Review Product
+                          </button>
+                        )}
+                        {item.isSellerReviewed ? (
+                          <span className="badge bg-info">
+                            ✓ Seller Reviewed
+                          </span>
+                        ) : (
+                          <button 
+                            className="btn btn-sm btn-outline-success"
+                            onClick={() => openSellerReviewModal(item)}
+                          >
+                            🏪 Rate Seller
                           </button>
                         )}
                       </div>
@@ -541,6 +604,78 @@ Thank you for shopping with SkillLink!
             disabled={submittingReview}
           >
             {submittingReview ? 'Submitting...' : 'Submit Review'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Seller Review Modal */}
+      <Modal show={showSellerReviewModal} onHide={() => setShowSellerReviewModal(false)} centered>
+        <Modal.Header closeButton className="bg-success text-white">
+          <Modal.Title>Rate Seller</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {reviewSeller && (
+            <div>
+              <div className="d-flex align-items-center gap-3 mb-4 p-3 bg-light rounded">
+                <div className="bg-success rounded-circle d-flex align-items-center justify-content-center" 
+                     style={{ width: '60px', height: '60px', fontSize: '24px', color: 'white' }}>
+                  🏪
+                </div>
+                <div>
+                  <h6 className="mb-0">{reviewSeller.shopName || reviewSeller.businessName || 'Seller'}</h6>
+                  <small className="text-muted">
+                    {reviewSeller.user?.name || 'Shop Owner'}
+                  </small>
+                </div>
+              </div>
+
+              <Form.Group className="mb-4">
+                <Form.Label className="fw-semibold">Your Rating</Form.Label>
+                <div className="d-flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      className="btn btn-link p-0 text-decoration-none"
+                      onClick={() => setSellerReviewData({ ...sellerReviewData, rating: star })}
+                      style={{ fontSize: '2rem' }}
+                    >
+                      {star <= sellerReviewData.rating ? '⭐' : '☆'}
+                    </button>
+                  ))}
+                </div>
+                <small className="text-muted">
+                  {sellerReviewData.rating === 1 && 'Poor'}
+                  {sellerReviewData.rating === 2 && 'Fair'}
+                  {sellerReviewData.rating === 3 && 'Good'}
+                  {sellerReviewData.rating === 4 && 'Very Good'}
+                  {sellerReviewData.rating === 5 && 'Excellent'}
+                </small>
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-semibold">Your Feedback</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={4}
+                  placeholder="Share your experience with this seller..."
+                  value={sellerReviewData.comment}
+                  onChange={(e) => setSellerReviewData({ ...sellerReviewData, comment: e.target.value })}
+                />
+              </Form.Group>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowSellerReviewModal(false)}>
+            Cancel
+          </Button>
+          <Button 
+            variant="success" 
+            onClick={handleSubmitSellerReview}
+            disabled={submittingSellerReview}
+          >
+            {submittingSellerReview ? 'Submitting...' : 'Submit Rating'}
           </Button>
         </Modal.Footer>
       </Modal>

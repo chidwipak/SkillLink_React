@@ -25,6 +25,30 @@ export const markAsRead = createAsyncThunk(
   }
 )
 
+export const markAllAsRead = createAsyncThunk(
+  'notifications/markAllAsRead',
+  async (_, { rejectWithValue }) => {
+    try {
+      await api.patch('/notifications/mark-all-read')
+      return true
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message)
+    }
+  }
+)
+
+export const deleteReadNotifications = createAsyncThunk(
+  'notifications/deleteRead',
+  async (_, { rejectWithValue }) => {
+    try {
+      await api.delete('/notifications/cleanup/read')
+      return true
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message)
+    }
+  }
+)
+
 const notificationSlice = createSlice({
   name: 'notifications',
   initialState: {
@@ -39,6 +63,11 @@ const notificationSlice = createSlice({
       if (!action.payload.isRead) {
         state.unreadCount += 1
       }
+    },
+    clearNotifications: (state) => {
+      state.items = []
+      state.unreadCount = 0
+      state.error = null
     },
   },
   extraReducers: (builder) => {
@@ -62,8 +91,15 @@ const notificationSlice = createSlice({
           state.unreadCount -= 1
         }
       })
+      .addCase(markAllAsRead.fulfilled, (state) => {
+        state.items.forEach(n => { n.isRead = true })
+        state.unreadCount = 0
+      })
+      .addCase(deleteReadNotifications.fulfilled, (state) => {
+        state.items = state.items.filter(n => !n.isRead)
+      })
   },
 })
 
-export const { addNotification } = notificationSlice.actions
+export const { addNotification, clearNotifications } = notificationSlice.actions
 export default notificationSlice.reducer

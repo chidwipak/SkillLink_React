@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import toast from 'react-hot-toast'
+import '../../styles/dashboard.css'
 
 const BookingList = () => {
   const navigate = useNavigate()
@@ -12,10 +13,21 @@ const BookingList = () => {
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [rating, setRating] = useState(5)
   const [reviewComment, setReviewComment] = useState('')
+  const [sharingLocation, setSharingLocation] = useState({})
+  const [locationInterval, setLocationInterval] = useState({})
   const fetchedRef = useRef(false)
+
+  // ── Rejection Fallback State ──
+  const [showRebookModal, setShowRebookModal] = useState(false)
+  const [rebookBooking, setRebookBooking] = useState(null)
+  const [alternativeWorkers, setAlternativeWorkers] = useState([])
+  const [loadingAlternatives, setLoadingAlternatives] = useState(false)
+  const [rebookingWorkerId, setRebookingWorkerId] = useState(null)
+  const [broadcasting, setBroadcasting] = useState(false)
 
   const loadBookings = useCallback(async (showLoader = false) => {
     const controller = new AbortController()
@@ -71,11 +83,16 @@ const BookingList = () => {
   }
 
   const handleCancelBooking = async () => {
+    if (!cancelReason.trim()) {
+      toast.error('Please select or enter a reason for cancellation')
+      return
+    }
     try {
-      await api.post(`/bookings/${selectedBooking._id}/cancel`)
+      await api.put(`/bookings/${selectedBooking._id}/cancel`, { reason: cancelReason })
       toast.success('Booking cancelled successfully')
       setShowCancelModal(false)
       setSelectedBooking(null)
+      setCancelReason('')
       // Refresh the list after cancellation
       loadBookings(true)
     } catch (error) {
@@ -100,6 +117,134 @@ const BookingList = () => {
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to submit review')
     }
+  }
+
+  const shareLocation = async (bookingId) => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser')
+      return
+    }
+
+    const shareLocationData = async (position) => {
+      try {
+        await api.post(`/bookings/${bookingId}/share-location`, {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        })
+      } catch (error) {
+        console.error('Location share error:', error)
+      }
+    }
+
+    // Get initial location
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        await shareLocationData(position)
+        toast.success('Location sharing started')
+        setSharingLocation(prev => ({ ...prev, [bookingId]: true }))
+
+        // Update location every 10 seconds
+        const interval = setInterval(() => {
+          navigator.geolocation.getCurrentPosition(shareLocationData)
+        }, 10000)
+
+        setLocationInterval(prev => ({ ...prev, [bookingId]: interval }))
+      },
+      (error) => {
+        toast.error('Failed to get your location. Please enable location access.')
+        console.error('Geolocation error:', error)
+      },
+      { enableHighAccuracy: true }
+    )
+  }
+
+  const stopSharingLocation = async (bookingId) => {
+    try {
+      await api.post(`/bookings/${bookingId}/stop-location`)
+      
+      // Clear interval
+      if (locationInterval[bookingId]) {
+        clearInterval(locationInterval[bookingId])
+        setLocationInterval(prev => {
+          const newIntervals = { ...prev }
+          delete newIntervals[bookingId]
+          return newIntervals
+        })
+      }
+
+      setSharingLocation(prev => ({ ...prev, [bookingId]: false }))
+      toast.success('Location sharing stopped')
+    } catch (error) {
+      toast.error('Failed to stop location sharing')
+    }
+  }
+
+  // Cleanup intervals on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(locationInterval).forEach(interval => clearInterval(interval))
+    }
+  }, [locationInterval])
+
+  // ── Rejection Fallback Handlers ──
+  const openRebookModal = async (booking) => {
+    setRebookBooking(booking)
+    setShowRebookModal(true)
+    setLoadingAlternatives(true)
+    setAlternativeWorkers([])
+    try {
+      const response = await api.get(`/bookings/${booking._id}/alternatives`)
+      setAlternativeWorkers(response.data.alternatives || [])
+    } catch (error) {
+      console.error('Failed to load alternatives:', error)
+      toast.error('Failed to load alternative workers')
+    } finally {
+      setLoadingAlternatives(false)
+    }
+  }
+
+  const handleRebookWithWorker = async (workerId) => {
+    if (!rebookBooking) return
+    setRebookingWorkerId(workerId)
+    try {
+      await api.post(`/bookings/${rebookBooking._id}/rebook`, { workerId })
+      toast.success('Booking re-sent to new worker! Awaiting confirmation.')
+      setShowRebookModal(false)
+      setRebookBooking(null)
+      setAlternativeWorkers([])
+      loadBookings(true)
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to rebook')
+    } finally {
+      setRebookingWorkerId(null)
+    }
+  }
+
+  const handleBroadcastRebook = async (bookingId) => {
+    setBroadcasting(true)
+    try {
+      const response = await api.post(`/bookings/${bookingId || rebookBooking?._id}/broadcast-rebook`)
+      toast.success(response.data.message || 'Booking broadcast to all available workers!')
+      setShowRebookModal(false)
+      setRebookBooking(null)
+      setAlternativeWorkers([])
+      loadBookings(true)
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to broadcast booking')
+    } finally {
+      setBroadcasting(false)
+    }
+  }
+
+  const getWorkerInitials = (name) => {
+    if (!name) return '?'
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  }
+
+  const getRejectionReason = (booking) => {
+    if (!booking.statusHistory) return null
+    const rejectedEntry = [...booking.statusHistory].reverse().find(h => h.status === 'rejected')
+    return rejectedEntry?.notes || null
   }
 
   if (loading && bookings.length === 0) return <LoadingSpinner />
@@ -132,7 +277,8 @@ const BookingList = () => {
               <tbody>
                 {bookings && bookings.length > 0 ? (
                   bookings.map((booking) => (
-                    <tr key={booking._id}>
+                    <React.Fragment key={booking._id}>
+                    <tr>
                       <td>
                         <div className="d-flex align-items-center">
                           <div className="service-icon bg-light rounded p-2 me-3">
@@ -176,41 +322,120 @@ const BookingList = () => {
                         {booking.status === 'accepted' && <span className="badge bg-info">Accepted</span>}
                         {booking.status === 'in-progress' && <span className="badge bg-primary">In Progress</span>}
                         {booking.status === 'completed' && <span className="badge bg-success">Completed</span>}
-                        {booking.status === 'rejected' && <span className="badge bg-danger">Rejected</span>}
+                        {booking.status === 'rejected' && <span className="badge bg-danger">Declined</span>}
                         {booking.status === 'cancelled' && <span className="badge bg-secondary">Cancelled</span>}
                       </td>
                       <td>
-                        {booking.status === 'completed' && !booking.isReviewed && (
-                          <button
-                            className="btn btn-sm btn-outline-warning"
-                            onClick={() => {
-                              setSelectedBooking(booking)
-                              setRating(5)
-                              setReviewComment('')
-                              setShowReviewModal(true)
-                            }}
-                          >
-                            <i className="fas fa-star me-1"></i> Rate Worker
-                          </button>
-                        )}
-                        {booking.status === 'completed' && booking.isReviewed && (
-                          <span className="text-success">
-                            <i className="fas fa-check-circle me-1"></i> Rated ({booking.rating}/5)
-                          </span>
-                        )}
-                        {booking.status === 'pending' && (
-                          <button
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() => {
-                              setSelectedBooking(booking)
-                              setShowCancelModal(true)
-                            }}
-                          >
-                            <i className="fas fa-times me-1"></i> Cancel
-                          </button>
-                        )}
+                        <div className="d-flex gap-2 flex-wrap">
+                          {/* ── REJECTION FALLBACK ACTIONS ── */}
+                          {booking.status === 'rejected' && (
+                            <>
+                              <button
+                                className="sk-btn-rebook"
+                                onClick={() => openRebookModal(booking)}
+                                title="Find another worker for this service"
+                              >
+                                <i className="fas fa-user-plus"></i> Find Another
+                              </button>
+                              <button
+                                className="sk-btn-broadcast"
+                                onClick={() => handleBroadcastRebook(booking._id)}
+                                disabled={broadcasting}
+                                title="Send to all available workers"
+                              >
+                                <i className="fas fa-broadcast-tower"></i> {broadcasting ? 'Sending...' : 'Broadcast'}
+                              </button>
+                            </>
+                          )}
+                          {booking.status === 'completed' && !booking.isReviewed && (
+                            <button
+                              className="btn btn-sm btn-outline-warning"
+                              onClick={() => {
+                                setSelectedBooking(booking)
+                                setRating(5)
+                                setReviewComment('')
+                                setShowReviewModal(true)
+                              }}
+                            >
+                              <i className="fas fa-star me-1"></i> Rate
+                            </button>
+                          )}
+                          {booking.status === 'completed' && booking.isReviewed && (
+                            <span className="text-success small">
+                              <i className="fas fa-check-circle me-1"></i> Rated ({booking.rating}/5)
+                            </span>
+                          )}
+                          {(booking.status === 'pending' || booking.status === 'accepted') && (
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => {
+                                setSelectedBooking(booking)
+                                setCancelReason('')
+                                setShowCancelModal(true)
+                              }}
+                            >
+                              <i className="fas fa-times me-1"></i> Cancel
+                            </button>
+                          )}
+                          {(booking.status === 'accepted' || booking.status === 'in-progress') && (
+                            <>
+                              {!sharingLocation[booking._id] ? (
+                                <button
+                                  className="btn btn-sm btn-outline-success"
+                                  onClick={() => shareLocation(booking._id)}
+                                  title="Share live location with worker"
+                                >
+                                  <i className="fas fa-map-marker-alt me-1"></i> Share Location
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn btn-sm btn-success"
+                                  onClick={() => stopSharingLocation(booking._id)}
+                                  title="Stop sharing location"
+                                >
+                                  <i className="fas fa-broadcast-tower me-1 fa-pulse"></i> Sharing...
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
+                    {/* ── Inline Rejection Banner ── */}
+                    {booking.status === 'rejected' && (
+                      <tr>
+                        <td colSpan="6" style={{ padding: '0 16px 12px', border: 'none' }}>
+                          <div className="sk-rejection-banner">
+                            <div className="sk-rejection-banner-header">
+                              <div className="sk-rejection-banner-icon">
+                                <i className="fas fa-exclamation-circle"></i>
+                              </div>
+                              <span className="sk-rejection-banner-title">
+                                Booking Declined by {booking.worker?.user?.name || booking.worker?.name || 'Worker'}
+                              </span>
+                            </div>
+                            {getRejectionReason(booking) && (
+                              <div className="sk-rejection-banner-reason">
+                                <i className="fas fa-quote-left me-1"></i> {getRejectionReason(booking)}
+                              </div>
+                            )}
+                            <div className="sk-rejection-banner-actions">
+                              <button className="sk-btn-rebook" onClick={() => openRebookModal(booking)}>
+                                <i className="fas fa-user-plus"></i> Find Alternative Worker
+                              </button>
+                              <button 
+                                className="sk-btn-broadcast" 
+                                onClick={() => handleBroadcastRebook(booking._id)}
+                                disabled={broadcasting}
+                              >
+                                <i className="fas fa-broadcast-tower"></i> {broadcasting ? 'Sending...' : 'Send to All Workers'}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   ))
                 ) : (
                   <tr>
@@ -287,13 +512,45 @@ const BookingList = () => {
               </div>
               <div className="modal-body">
                 <p>Are you sure you want to cancel this booking?</p>
-                <p className="text-muted">Service: {selectedBooking.service?.name}</p>
+                <p className="text-muted mb-3">Service: {selectedBooking.service?.name}</p>
+                
+                <div className="mb-3">
+                  <label className="form-label fw-semibold">Reason for cancellation *</label>
+                  <select
+                    className="form-select mb-2"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                  >
+                    <option value="">Select a reason</option>
+                    <option value="Changed my mind">Changed my mind</option>
+                    <option value="Found another provider">Found another provider</option>
+                    <option value="Schedule conflict">Schedule conflict</option>
+                    <option value="Too expensive">Too expensive</option>
+                    <option value="Issue no longer exists">Issue no longer exists</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  {cancelReason === 'Other' && (
+                    <textarea
+                      className="form-control"
+                      rows="2"
+                      placeholder="Please describe your reason..."
+                      onChange={(e) => setCancelReason(e.target.value || 'Other')}
+                    ></textarea>
+                  )}
+                </div>
+
+                {selectedBooking.status === 'accepted' && (
+                  <div className="alert alert-warning py-2">
+                    <i className="fas fa-exclamation-triangle me-2"></i>
+                    <small>A worker has already accepted this booking. They will be notified of the cancellation.</small>
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCancelModal(false)}>
                   No, Keep It
                 </button>
-                <button type="button" className="btn btn-danger" onClick={handleCancelBooking}>
+                <button type="button" className="btn btn-danger" onClick={handleCancelBooking} disabled={!cancelReason.trim()}>
                   Yes, Cancel Booking
                 </button>
               </div>
@@ -347,6 +604,133 @@ const BookingList = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ REBOOK MODAL — Rejection Fallback ═══ */}
+      {showRebookModal && rebookBooking && (
+        <div className="sk-rebook-overlay" onClick={() => setShowRebookModal(false)}>
+          <div className="sk-rebook-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sk-rebook-modal-header">
+              <h3>
+                <i className="fas fa-exchange-alt"></i>
+                Find Alternative Worker
+              </h3>
+              <button className="sk-close-btn" onClick={() => setShowRebookModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="sk-rebook-modal-body">
+              {/* Rejection Info */}
+              <div className="sk-rebook-info">
+                <div className="sk-rebook-info-icon">
+                  <i className="fas fa-times-circle"></i>
+                </div>
+                <div className="sk-rebook-info-text">
+                  <h4>
+                    {rebookBooking.service?.name || 'Service'} — Declined by {rebookBooking.worker?.user?.name || rebookBooking.worker?.name || 'Worker'}
+                  </h4>
+                  <p>
+                    {getRejectionReason(rebookBooking) 
+                      ? `Reason: "${getRejectionReason(rebookBooking)}"` 
+                      : 'No reason provided'}
+                    {' • '}
+                    {new Date(rebookBooking.date).toLocaleDateString()} at {rebookBooking.time}
+                  </p>
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {loadingAlternatives && (
+                <div style={{ textAlign: 'center', padding: '30px' }}>
+                  <div className="spinner-border text-primary" role="status"></div>
+                  <p style={{ marginTop: '12px', color: '#64748b', fontSize: '0.9rem' }}>
+                    Searching for available workers...
+                  </p>
+                </div>
+              )}
+
+              {/* Alternative Workers List */}
+              {!loadingAlternatives && alternativeWorkers.length > 0 && (
+                <>
+                  <div className="sk-alternatives-title">
+                    <i className="fas fa-users" style={{ color: '#6366f1' }}></i>
+                    Available Workers
+                    <span className="count-badge">{alternativeWorkers.length} found</span>
+                  </div>
+                  <div className="sk-alternatives-grid">
+                    {alternativeWorkers.map((w) => (
+                      <div className="sk-worker-card" key={w.workerId}>
+                        <div className="sk-worker-card-avatar">
+                          {w.profilePicture ? (
+                            <img 
+                              src={w.profilePicture} 
+                              alt={w.name}
+                              onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.textContent = getWorkerInitials(w.name) }}
+                            />
+                          ) : (
+                            getWorkerInitials(w.name)
+                          )}
+                        </div>
+                        <div className="sk-worker-card-details">
+                          <div className="sk-worker-card-name">{w.name}</div>
+                          <div className="sk-worker-card-meta">
+                            <span><i className="fas fa-star star"></i> {w.rating?.toFixed(1) || '0.0'}</span>
+                            <span><i className="fas fa-briefcase"></i> {w.experience || 0} yrs</span>
+                            <span><i className="fas fa-check-circle"></i> {w.jobsCompleted || 0} jobs</span>
+                          </div>
+                        </div>
+                        <div className="sk-worker-card-price">₹{w.price?.toFixed(0) || '0'}</div>
+                        <button
+                          className="sk-worker-card-book-btn"
+                          onClick={() => handleRebookWithWorker(w.workerId)}
+                          disabled={rebookingWorkerId === w.workerId}
+                        >
+                          {rebookingWorkerId === w.workerId ? (
+                            <><i className="fas fa-spinner fa-spin"></i> Booking...</>
+                          ) : (
+                            <><i className="fas fa-paper-plane"></i> Book</>
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Broadcast Option */}
+                  <button 
+                    className="sk-broadcast-all-btn"
+                    onClick={() => handleBroadcastRebook()}
+                    disabled={broadcasting}
+                  >
+                    {broadcasting ? (
+                      <><i className="fas fa-spinner fa-spin"></i> Broadcasting...</>
+                    ) : (
+                      <><i className="fas fa-broadcast-tower"></i> Or send to ALL {alternativeWorkers.length} workers — first to accept wins</>
+                    )}
+                  </button>
+                </>
+              )}
+
+              {/* No Alternatives */}
+              {!loadingAlternatives && alternativeWorkers.length === 0 && (
+                <div className="sk-no-alternatives">
+                  <div className="sk-no-alternatives-icon">😔</div>
+                  <h4>No Workers Available Right Now</h4>
+                  <p>All workers in this category are either busy or unavailable. Please try again in a few minutes.</p>
+                  <button
+                    className="sk-btn-rebook"
+                    style={{ marginTop: '16px', padding: '12px 24px' }}
+                    onClick={() => { setShowRebookModal(false); navigate('/services') }}
+                  >
+                    <i className="fas fa-search"></i> Browse All Services
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

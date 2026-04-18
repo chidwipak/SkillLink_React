@@ -6,134 +6,177 @@ import toast from 'react-hot-toast'
 
 const WorkerAvailability = () => {
   const { user } = useSelector((state) => state.auth)
-  const [loading, setLoading] = useState(false)
-  const [isAvailable, setIsAvailable] = useState(user?.isAvailable || false)
+  const [saving, setSaving] = useState(false)
+  const [isAvailable, setIsAvailable] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+
+  // Fetch worker's current availability status on mount
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      try {
+        const response = await api.get('/dashboard/worker/stats')
+        if (response.data?.worker) {
+          setIsAvailable(response.data.worker.isAvailable || false)
+        }
+      } catch (error) {
+        console.error('Failed to fetch availability:', error)
+      } finally {
+        setInitialLoading(false)
+      }
+    }
+    fetchAvailability()
+  }, [])
 
   const handleToggle = async () => {
-    setLoading(true)
+    if (saving) return // Prevent double-clicks
+    
+    const previousValue = isAvailable
+    const newValue = !isAvailable
+    
+    // Optimistic update - change UI immediately
+    setIsAvailable(newValue)
+    setSaving(true)
+    
     try {
-      const response = await api.put('/workers/availability', { isAvailable: !isAvailable })
+      const response = await api.put('/workers/availability', { isAvailable: newValue })
+      // Confirm with server response
       setIsAvailable(response.data.worker.isAvailable)
-      toast.success(`Availability ${!isAvailable ? 'enabled' : 'disabled'}`)
+      toast.success(`Availability ${response.data.worker.isAvailable ? 'enabled' : 'disabled'}`)
     } catch (error) {
+      // Revert on error
+      setIsAvailable(previousValue)
       toast.error(error.response?.data?.message || 'Failed to update availability')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
-  return (
-    <div>
-      <div className="dashboard-header mb-4">
-        <h1 className="h2 mb-1">Availability Settings</h1>
-        <p className="text-muted">Manage when you're available to accept new job bookings.</p>
-      </div>
+  if (initialLoading) {
+    return <LoadingSpinner />
+  }
 
-      <div className="row">
-        <div className="col-lg-8">
-          <div className="card">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-start mb-4">
+  return (
+    <div className="ent-dashboard">
+      <div className="ent-container">
+        {/* Header */}
+        <header className="ent-header ent-animate">
+          <div>
+            <h1 className="ent-header-title">Availability Settings</h1>
+            <p className="ent-header-subtitle">Manage when you're available to accept new job bookings</p>
+          </div>
+        </header>
+
+        <div className="ent-row ent-row-2">
+          {/* Main Card */}
+          <div className="ent-card ent-animate">
+            <div className="ent-card-header">
+              <h3 className="ent-card-title">
+                <i className="fas fa-toggle-on"></i> Current Status
+              </h3>
+            </div>
+            <div className="ent-card-body">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <div>
-                  <h5 className="card-title mb-2">Current Status</h5>
-                  <p className="text-muted mb-0">Toggle your availability to control whether customers can book your services</p>
+                  <h4 style={{ margin: '0 0 8px', fontSize: '1.25rem' }}>Toggle Availability</h4>
+                  <p style={{ margin: 0, color: 'var(--slate-500)' }}>
+                    Control whether customers can send you booking requests
+                  </p>
                 </div>
                 <button
                   onClick={handleToggle}
-                  disabled={loading}
-                  className={`btn btn-lg ${isAvailable ? 'btn-success' : 'btn-secondary'}`}
-                  style={{ minWidth: '120px' }}
+                  disabled={saving}
+                  className={`ent-btn ${isAvailable ? 'ent-btn-success' : 'ent-btn-secondary'}`}
+                  style={{ minWidth: '160px', padding: '12px 20px', height: '48px', transition: 'background-color 0.2s, opacity 0.2s' }}
                 >
-                  {loading ? (
-                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                  ) : (
-                    <i className={`fas fa-${isAvailable ? 'toggle-on' : 'toggle-off'} me-2`}></i>
-                  )}
+                  <i className={`fas fa-${isAvailable ? 'toggle-on' : 'toggle-off'}`} style={{ marginRight: '8px' }}></i>
                   {isAvailable ? 'Available' : 'Unavailable'}
                 </button>
               </div>
 
-              <div className={`alert ${isAvailable ? 'alert-success' : 'alert-warning'} mb-0`}>
-                <div className="d-flex align-items-start">
-                  <i className={`fas fa-${isAvailable ? 'check-circle' : 'exclamation-triangle'} me-3 mt-1`} style={{fontSize: '1.5rem'}}></i>
-                  <div>
-                    <h6 className="alert-heading mb-1">
-                      {isAvailable ? 'You are currently available' : 'You are currently unavailable'}
-                    </h6>
-                    <p className="mb-0">
-                      {isAvailable
-                        ? 'Customers can see and book your services. You will receive notifications for new booking requests.'
-                        : 'Customers cannot book your services right now. You will not receive new booking requests.'}
-                    </p>
-                  </div>
+              <div className={`ent-alert ${isAvailable ? 'ent-alert-success' : 'ent-alert-warning'}`}>
+                <i className={`fas fa-${isAvailable ? 'check-circle' : 'exclamation-triangle'}`}></i>
+                <div>
+                  <strong>{isAvailable ? 'You are currently available' : 'You are currently unavailable'}</strong>
+                  <p style={{ margin: '4px 0 0' }}>
+                    {isAvailable
+                      ? 'Customers can see and book your services. You will receive notifications for new booking requests.'
+                      : 'Customers cannot book your services right now. You will not receive new booking requests.'}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="card mt-4">
-            <div className="card-body">
-              <h5 className="card-title mb-3">
-                <i className="fas fa-lightbulb text-warning me-2"></i>
-                Tips for Managing Availability
-              </h5>
-              <ul className="list-unstyled mb-0">
-                <li className="mb-2">
-                  <i className="fas fa-check text-success me-2"></i>
-                  Turn off availability when you're on vacation or unable to take new work
-                </li>
-                <li className="mb-2">
-                  <i className="fas fa-check text-success me-2"></i>
-                  Keep your availability updated to avoid disappointing customers
-                </li>
-                <li className="mb-2">
-                  <i className="fas fa-check text-success me-2"></i>
-                  You can still complete ongoing bookings when unavailable
-                </li>
-                <li className="mb-2">
-                  <i className="fas fa-check text-success me-2"></i>
-                  Respond promptly to bookings to maintain high ratings
-                </li>
-                <li className="mb-0">
-                  <i className="fas fa-check text-success me-2"></i>
-                  Toggle availability as needed - there are no penalties
-                </li>
-              </ul>
+          {/* Side Info Card */}
+          <div>
+            <div className="ent-card ent-animate">
+              <div className="ent-card-header">
+                <h3 className="ent-card-title">
+                  <i className="fas fa-info-circle"></i> How It Works
+                </h3>
+              </div>
+              <div className="ent-card-body">
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span className="ent-badge ent-badge-success">Available</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--slate-500)' }}>
+                    Visible to customers, can receive booking requests
+                  </p>
+                </div>
+                <hr style={{ border: 'none', borderTop: '1px solid var(--slate-200)', margin: '12px 0' }} />
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span className="ent-badge ent-badge-default">Unavailable</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--slate-500)' }}>
+                    Shown as unavailable, cannot receive new requests
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="ent-card ent-animate" style={{ marginTop: '16px' }}>
+              <div className="ent-card-body" style={{ textAlign: 'center' }}>
+                <i className="fas fa-star" style={{ fontSize: '2rem', color: 'var(--warning)' }}></i>
+                <h4 style={{ margin: '12px 0 8px' }}>Pro Tip</h4>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--slate-500)' }}>
+                  Workers who maintain consistent availability get more bookings and better ratings!
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="col-lg-4">
-          <div className="card bg-light">
-            <div className="card-body">
-              <h6 className="card-title">
-                <i className="fas fa-info-circle text-primary me-2"></i>
-                How It Works
-              </h6>
-              <p className="small text-muted mb-3">
-                When you're available, your profile appears in search results and customers can send you booking requests.
-              </p>
-              <div className="small">
-                <div className="mb-2">
-                  <strong className="text-success">✓ Available</strong>
-                  <p className="text-muted mb-0">Visible to customers, receive booking requests</p>
-                </div>
-                <hr />
-                <div>
-                  <strong className="text-secondary">✗ Unavailable</strong>
-                  <p className="text-muted mb-0">Hidden from search, no new requests</p>
-                </div>
-              </div>
-            </div>
+        {/* Tips Card */}
+        <div className="ent-card ent-animate" style={{ marginTop: '24px' }}>
+          <div className="ent-card-header">
+            <h3 className="ent-card-title">
+              <i className="fas fa-lightbulb" style={{ color: 'var(--warning)' }}></i> Tips for Managing Availability
+            </h3>
           </div>
-
-          <div className="card mt-3">
-            <div className="card-body text-center">
-              <i className="fas fa-star text-warning" style={{fontSize: '2rem'}}></i>
-              <h6 className="mt-2 mb-1">Pro Tip</h6>
-              <p className="small text-muted mb-0">
-                Workers who maintain consistent availability tend to get more bookings and better ratings!
-              </p>
+          <div className="ent-card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <i className="fas fa-check-circle" style={{ color: 'var(--success)', marginTop: '2px' }}></i>
+                <span>Turn off availability when you're on vacation or unable to take new work</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <i className="fas fa-check-circle" style={{ color: 'var(--success)', marginTop: '2px' }}></i>
+                <span>Keep your availability updated to avoid disappointing customers</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <i className="fas fa-check-circle" style={{ color: 'var(--success)', marginTop: '2px' }}></i>
+                <span>You can still complete ongoing bookings when unavailable</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <i className="fas fa-check-circle" style={{ color: 'var(--success)', marginTop: '2px' }}></i>
+                <span>Respond promptly to bookings to maintain high ratings</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <i className="fas fa-check-circle" style={{ color: 'var(--success)', marginTop: '2px' }}></i>
+                <span>Toggle availability as needed - there are no penalties</span>
+              </div>
             </div>
           </div>
         </div>

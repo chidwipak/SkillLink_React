@@ -40,21 +40,25 @@ const Footer = () => {
   ]
 
   return (
-    <footer className="bg-gray-900 text-gray-300">
+    <footer className="relative overflow-hidden" style={{ backgroundColor: '#0a0a0f', color: '#d4d4d8' }}>
+      {/* Subtle gradient overlay */}
+      <div className="absolute top-0 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, #6366f1, transparent)' }}></div>
+      
       {/* Main Footer Content */}
       <div className="container mx-auto px-4 pt-16 pb-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-10">
           {/* Brand Section */}
           <div className="lg:col-span-2">
-            <Link to="/" className="flex items-center gap-2 group mb-5">
-              <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center text-white font-bold text-xl">
+            <Link to="/" className="flex items-center gap-2.5 group mb-5 no-underline">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg" style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)' }}>
                 S
               </div>
-              <span className="text-2xl font-bold text-white">
-                Skill<span className="text-primary-400">Link</span>
+              <span className="text-2xl font-extrabold">
+                <span className="bg-gradient-to-r from-indigo-400 to-indigo-500 bg-clip-text text-transparent">Skill</span>
+                <span className="text-white">Link</span>
               </span>
             </Link>
-            <p className="text-gray-400 mb-5 leading-relaxed text-sm">
+            <p className="text-gray-500 mb-5 leading-relaxed text-sm max-w-xs">
               Your trusted platform for professional home services. Connecting skilled workers with customers for seamless service experiences.
             </p>
             
@@ -64,7 +68,8 @@ const Footer = () => {
                 <a
                   key={social.name}
                   href={social.href}
-                  className="w-9 h-9 rounded-lg bg-gray-800 hover:bg-primary-600 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200"
+                  className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-500 hover:bg-indigo-600 hover:border-indigo-600 hover:text-white hover:shadow-lg transition-all duration-300"
+                  style={{ '--tw-shadow-color': 'rgba(99, 102, 241, 0.3)' }}
                   aria-label={social.name}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -77,14 +82,11 @@ const Footer = () => {
 
           {/* Services Links */}
           <div>
-            <h4 className="font-semibold text-white mb-4 text-sm uppercase tracking-wider">Services</h4>
+            <h4 className="font-bold text-white mb-4 text-xs uppercase tracking-widest">Services</h4>
             <ul className="space-y-2.5">
               {footerLinks.services.map((link) => (
                 <li key={link.name}>
-                  <Link
-                    to={link.href}
-                    className="text-gray-400 hover:text-white text-sm transition-colors duration-200"
-                  >
+                  <Link to={link.href} className="text-gray-500 text-sm hover:text-indigo-400 transition-colors duration-200 no-underline">
                     {link.name}
                   </Link>
                 </li>
@@ -94,14 +96,11 @@ const Footer = () => {
 
           {/* Company Links */}
           <div>
-            <h4 className="font-semibold text-white mb-4 text-sm uppercase tracking-wider">Company</h4>
+            <h4 className="font-bold text-white mb-4 text-xs uppercase tracking-widest">Company</h4>
             <ul className="space-y-2.5">
               {footerLinks.company.map((link) => (
                 <li key={link.name}>
-                  <Link
-                    to={link.href}
-                    className="text-gray-400 hover:text-white text-sm transition-colors duration-200"
-                  >
+                  <Link to={link.href} className="text-gray-500 text-sm hover:text-indigo-400 transition-colors duration-200 no-underline">
                     {link.name}
                   </Link>
                 </li>
@@ -111,14 +110,11 @@ const Footer = () => {
 
           {/* For Providers */}
           <div>
-            <h4 className="font-semibold text-white mb-4 text-sm uppercase tracking-wider">Providers</h4>
+            <h4 className="font-bold text-white mb-4 text-xs uppercase tracking-widest">Providers</h4>
             <ul className="space-y-2.5">
               {footerLinks.providers.map((link) => (
                 <li key={link.name}>
-                  <Link
-                    to={link.href}
-                    className="text-gray-400 hover:text-white text-sm transition-colors duration-200"
-                  >
+                  <Link to={link.href} className="text-gray-500 text-sm hover:text-indigo-400 transition-colors duration-200 no-underline">
                     {link.name}
                   </Link>
                 </li>
@@ -128,14 +124,11 @@ const Footer = () => {
 
           {/* Support */}
           <div>
-            <h4 className="font-semibold text-white mb-4 text-sm uppercase tracking-wider">Support</h4>
+            <h4 className="font-bold text-white mb-4 text-xs uppercase tracking-widest">Support</h4>
             <ul className="space-y-2.5">
               {footerLinks.support.map((link) => (
                 <li key={link.name}>
-                  <Link
-                    to={link.href}
-                    className="text-gray-400 hover:text-white text-sm transition-colors duration-200"
-                  >
+                  <Link to={link.href} className="text-gray-500 text-sm hover:text-indigo-400 transition-colors duration-200 no-underline">
                     {link.name}
                   </Link>
                 </li>
@@ -145,19 +138,21 @@ const Footer = () => {
         </div>
 
         {/* Newsletter Section */}
-        <div className="mt-12 pt-8 border-t border-gray-800">
+        <div className="mt-12 pt-8" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
             <div>
-              <h3 className="text-lg font-semibold text-white mb-1">Subscribe to our newsletter</h3>
-              <p className="text-gray-400 text-sm">Get the latest updates and offers.</p>
+              <h3 className="text-lg font-bold text-white mb-1">Stay in the loop</h3>
+              <p className="text-gray-500 text-sm">Get the latest updates and exclusive offers.</p>
             </div>
             <div className="flex gap-2">
               <input
                 type="email"
                 placeholder="Enter your email"
-                className="flex-1 px-4 py-2.5 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-primary-500 transition-colors"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-indigo-500 transition-colors placeholder:text-gray-600"
               />
-              <button className="px-5 py-2.5 rounded-lg bg-primary-600 text-white font-medium text-sm hover:bg-primary-700 transition-colors">
+              <button className="px-5 py-2.5 rounded-xl text-white font-semibold text-sm border-0 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)' }}
+              >
                 Subscribe
               </button>
             </div>
@@ -166,22 +161,16 @@ const Footer = () => {
       </div>
 
       {/* Bottom Bar */}
-      <div className="border-t border-gray-800">
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="container mx-auto px-4 py-5">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-600 text-sm">
               © {currentYear} SkillLink. All rights reserved.
             </p>
             <div className="flex items-center gap-6">
-              <Link to="/terms" className="text-gray-500 hover:text-white text-sm transition-colors">
-                Terms
-              </Link>
-              <Link to="/privacy" className="text-gray-500 hover:text-white text-sm transition-colors">
-                Privacy
-              </Link>
-              <Link to="/cookies" className="text-gray-500 hover:text-white text-sm transition-colors">
-                Cookies
-              </Link>
+              <Link to="/terms" className="text-gray-600 text-sm hover:text-indigo-400 transition-colors no-underline">Terms</Link>
+              <Link to="/privacy" className="text-gray-600 text-sm hover:text-indigo-400 transition-colors no-underline">Privacy</Link>
+              <Link to="/cookies" className="text-gray-600 text-sm hover:text-indigo-400 transition-colors no-underline">Cookies</Link>
             </div>
           </div>
         </div>

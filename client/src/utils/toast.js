@@ -9,7 +9,7 @@ export const toast = {
       duration: 3000,
       position: 'top-right',
       style: {
-        background: '#10B981',
+        background: '#6366f1',
         color: '#fff',
         padding: '16px',
         borderRadius: '8px',
@@ -41,7 +41,7 @@ export const toast = {
       duration: 3000,
       position: 'top-right',
       style: {
-        background: '#3B82F6',
+        background: '#6366f1',
         color: '#fff',
         padding: '16px',
         borderRadius: '8px',
@@ -72,7 +72,7 @@ export const toast = {
     return hotToast.loading(message, {
       position: 'top-right',
       style: {
-        background: '#6366F1',
+        background: '#6366f1',
         color: '#fff',
         padding: '16px',
         borderRadius: '8px',
@@ -121,11 +121,11 @@ export const ToastContainer = () => (
       },
       success: {
         style: {
-          background: '#10B981',
+          background: '#6366f1',
         },
         iconTheme: {
           primary: '#fff',
-          secondary: '#10B981',
+          secondary: '#6366f1',
         },
       },
       error: {

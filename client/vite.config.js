@@ -9,23 +9,26 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  define: {
+    'global': 'globalThis',
+  },
   server: {
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:5005',
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:5005',
         changeOrigin: true,
       },
       '/images': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:5005',
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:5005',
         changeOrigin: true,
         ws: true,
       },

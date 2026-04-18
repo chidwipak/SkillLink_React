@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import ImageWithFallback from '../components/common/ImageWithFallback'
+import '../styles/modern.css'
 
 const Home = () => {
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -25,8 +26,7 @@ const Home = () => {
         { value: '4.9', label: 'Rating' },
         { value: '24/7', label: 'Support' }
       ],
-      gradient: 'from-blue-600 to-indigo-700',
-      accentColor: 'blue'
+      accentColor: '#6366f1'
     },
     {
       id: 2,
@@ -44,8 +44,7 @@ const Home = () => {
         { value: '500+', label: 'Sellers' },
         { value: 'Free', label: 'Shipping' }
       ],
-      gradient: 'from-emerald-600 to-teal-700',
-      accentColor: 'emerald'
+      accentColor: '#10b981'
     },
     {
       id: 3,
@@ -63,18 +62,17 @@ const Home = () => {
         { value: '100+', label: 'Cities' },
         { value: 'Flexible', label: 'Hours' }
       ],
-      gradient: 'from-violet-600 to-purple-700',
-      accentColor: 'violet'
+      accentColor: '#8b5cf6'
     }
   ]
 
-  // Auto-slide functionality - 2 seconds interval, pauses on hover
+  // Auto-slide functionality - 5 seconds interval, pauses on hover
   useEffect(() => {
     if (isHovered) return // Pause on hover
 
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length)
-    }, 2000) // 2 seconds per slide
+    }, 5000) // 5 seconds per slide for readability
 
     return () => clearInterval(interval)
   }, [isHovered, heroSlides.length])
@@ -223,20 +221,32 @@ const Home = () => {
   ]
 
   return (
-    <div className="overflow-hidden bg-white">
+    <div className="overflow-hidden bg-gradient-to-br from-white via-slate-50 to-indigo-50/30">
+      {/* Floating Background Particles */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="floating-particle floating-particle-1"></div>
+        <div className="floating-particle floating-particle-2"></div>
+        <div className="floating-particle floating-particle-3"></div>
+      </div>
+
       {/* Hero Section with Auto-Sliding Carousel */}
       <section 
-        className="relative min-h-[92vh] flex items-center bg-white overflow-hidden"
+        className="relative min-h-[92vh] flex items-center overflow-hidden"
+        style={{background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 50%, #eef2ff 100%)'}}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* Subtle Background Pattern */}
-        <div className="absolute inset-0 opacity-[0.02]">
+        {/* Animated Background Pattern */}
+        <div className="absolute inset-0 opacity-[0.04]">
           <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366f1' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
           }}></div>
         </div>
 
+        {/* Gradient Orbs */}
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-indigo-100/40 to-purple-100/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-pink-100/30 to-blue-100/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+        
         {/* Slides Container */}
         <div className="container mx-auto px-4 relative z-10">
           {heroSlides.map((slide, index) => (
@@ -268,7 +278,8 @@ const Home = () => {
                 >
                   {slide.title}
                   <span 
-                    className={`block mt-2 bg-gradient-to-r ${slide.gradient} bg-clip-text text-transparent`}
+                    className="block mt-2 text-gray-900"
+                    style={{ color: slide.accentColor }}
                   >
                     {slide.highlight}
                   </span>
@@ -291,7 +302,8 @@ const Home = () => {
                 >
                   <Link 
                     to={slide.buttonLink}
-                    className={`group inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r ${slide.gradient} text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300`}
+                    className="group inline-flex items-center justify-center px-8 py-4 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+                    style={{ backgroundColor: slide.accentColor }}
                   >
                     <span className="mr-2">{slide.buttonIcon}</span>
                     {slide.buttonText}
@@ -316,7 +328,7 @@ const Home = () => {
                 >
                   {slide.stats.map((stat, idx) => (
                     <div key={idx} className="text-center">
-                      <div className={`text-2xl font-bold bg-gradient-to-r ${slide.gradient} bg-clip-text text-transparent`}>
+                      <div className="text-2xl font-bold text-gray-900" style={{ color: slide.accentColor }}>
                         {stat.value}
                       </div>
                       <div className="text-sm text-gray-500">{stat.label}</div>
@@ -334,9 +346,6 @@ const Home = () => {
                 <div className="relative w-full max-w-lg">
                   {/* Main Image Container */}
                   <div className="relative rounded-2xl overflow-hidden shadow-2xl transform hover:scale-[1.02] transition-transform duration-500">
-                    {/* Gradient Overlay */}
-                    <div className={`absolute inset-0 bg-gradient-to-tr ${slide.gradient} opacity-10 z-10`}></div>
-                    
                     <ImageWithFallback
                       src={slide.image}
                       alt={slide.title}
@@ -358,7 +367,7 @@ const Home = () => {
                     index === currentSlide ? 'animate-float' : ''
                   }`}>
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg bg-gradient-to-r ${slide.gradient} flex items-center justify-center text-white`}>
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: slide.accentColor }}>
                         ✓
                       </div>
                       <div>
@@ -380,9 +389,9 @@ const Home = () => {
                     </div>
                   </div>
 
-                  {/* Decorative circles */}
-                  <div className={`absolute -z-10 -top-8 -right-8 w-32 h-32 rounded-full bg-gradient-to-r ${slide.gradient} opacity-20 blur-2xl`}></div>
-                  <div className={`absolute -z-10 -bottom-8 -left-8 w-40 h-40 rounded-full bg-gradient-to-r ${slide.gradient} opacity-20 blur-3xl`}></div>
+                  {/* Decorative circles - removed gradient */}
+                  <div className="absolute -z-10 -top-8 -right-8 w-32 h-32 rounded-full opacity-20 blur-2xl" style={{ backgroundColor: slide.accentColor }}></div>
+                  <div className="absolute -z-10 -bottom-8 -left-8 w-40 h-40 rounded-full opacity-20 blur-3xl" style={{ backgroundColor: slide.accentColor }}></div>
                 </div>
               </div>
             </div>
@@ -397,13 +406,13 @@ const Home = () => {
               onClick={() => goToSlide(index)}
               className={`relative h-3 rounded-full transition-all duration-500 ${
                 index === currentSlide 
-                  ? 'w-10 bg-gradient-to-r from-gray-700 to-gray-900' 
+                  ? 'w-10 bg-gray-700' 
                   : 'w-3 bg-gray-300 hover:bg-gray-400'
               }`}
               aria-label={`Go to slide ${index + 1}`}
             >
               {index === currentSlide && (
-                <span className="absolute inset-0 rounded-full bg-gradient-to-r from-gray-700 to-gray-900 animate-pulse opacity-50"></span>
+                <span className="absolute inset-0 rounded-full bg-gray-700 animate-pulse opacity-50"></span>
               )}
             </button>
           ))}
@@ -432,7 +441,7 @@ const Home = () => {
         {/* Progress Bar */}
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-100">
           <div 
-            className="h-full bg-gradient-to-r from-gray-600 to-gray-800 transition-all ease-linear"
+            className="h-full bg-gray-700 transition-all ease-linear"
             style={{ 
               width: `${((currentSlide + 1) / heroSlides.length) * 100}%`,
               transitionDuration: isHovered ? '0ms' : '6000ms'
@@ -441,9 +450,13 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 bg-gray-50 border-y border-gray-100">
-        <div className="container mx-auto px-4">
+      {/* Stats Section - Enhanced */}
+      <section className="py-20 relative overflow-hidden" style={{background: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 50%, #f8fafc 100%)'}}>
+        <div className="absolute inset-0 opacity-50">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-100/50 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-purple-100/40 rounded-full blur-3xl"></div>
+        </div>
+        <div className="container mx-auto px-4 relative z-10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
               <div 
@@ -452,58 +465,61 @@ const Home = () => {
                 id={`stat-${index}`}
                 data-animate
               >
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-md mb-4 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-300">
-                  <span className="text-2xl">{stat.icon}</span>
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white shadow-lg mb-4 group-hover:shadow-xl group-hover:-translate-y-2 transition-all duration-300 border border-indigo-100/50">
+                  <span className="text-3xl">{stat.icon}</span>
                 </div>
-                <div className="text-3xl md:text-4xl font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors duration-300">
+                <div className="text-4xl md:text-5xl font-extrabold mb-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent group-hover:scale-105 transition-transform duration-300">
                   {stat.number}
                 </div>
-                <div className="text-gray-500 text-sm">{stat.label}</div>
+                <div className="text-gray-600 font-medium">{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Services Section */}
-      <section className="py-20 bg-white" id="services-section" data-animate>
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-14">
-            <span className="inline-block px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold mb-4">
+      {/* Services Section - Enhanced */}
+      <section className="py-24 bg-white relative overflow-hidden" id="services-section" data-animate>
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-bl from-indigo-50 to-transparent rounded-full blur-2xl opacity-70"></div>
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="text-center mb-16">
+            <span className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 rounded-full text-sm font-semibold mb-4 border border-indigo-100">
+              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
               Our Services
             </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              What We Offer
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+              What We <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Offer</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Professional home services tailored to your needs, delivered by verified experts
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
             {services.map((service, index) => (
               <Link
                 key={service.name}
                 to="/services"
-                className={`group p-6 rounded-2xl border-2 ${service.color} transition-all duration-300 hover:shadow-lg hover:-translate-y-2`}
+                className={`group p-6 rounded-2xl border-2 ${service.color} transition-all duration-500 hover:shadow-2xl hover:-translate-y-3 hover:border-indigo-200 relative overflow-hidden`}
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
-                <div className={`w-14 h-14 ${service.iconBg} rounded-xl flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className={`w-16 h-16 ${service.iconBg} rounded-xl flex items-center justify-center text-3xl mb-4 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 shadow-lg relative z-10`}>
                   {service.icon}
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1">{service.name}</h3>
-                <p className="text-sm text-gray-500">{service.desc}</p>
+                <h3 className="font-bold text-gray-900 mb-1 relative z-10">{service.name}</h3>
+                <p className="text-sm text-gray-500 relative z-10">{service.desc}</p>
               </Link>
             ))}
           </div>
 
-          <div className="text-center mt-10">
+          <div className="text-center mt-12">
             <Link 
               to="/services" 
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transform hover:-translate-y-1 transition-all duration-300"
+              className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold text-lg shadow-xl shadow-indigo-500/25 hover:shadow-2xl hover:shadow-indigo-500/40 transform hover:-translate-y-1 transition-all duration-300"
             >
               View All Services
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
             </Link>
@@ -511,15 +527,20 @@ const Home = () => {
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="py-20 bg-gray-50" id="how-it-works" data-animate>
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-14">
-            <span className="inline-block px-4 py-2 bg-emerald-50 text-emerald-700 rounded-full text-sm font-semibold mb-4">
+      {/* How It Works Section - Enhanced */}
+      <section className="py-24 relative overflow-hidden" id="how-it-works" data-animate style={{background: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 50%, #faf5ff 100%)'}}>
+        <div className="absolute inset-0">
+          <div className="absolute top-1/4 left-0 w-96 h-96 bg-purple-100/40 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-indigo-100/50 rounded-full blur-3xl"></div>
+        </div>
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="text-center mb-16">
+            <span className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 rounded-full text-sm font-semibold mb-4 border border-emerald-100">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
               Simple Process
             </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              How It Works
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+              How It <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Works</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Get professional help in just a few simple steps
@@ -527,23 +548,23 @@ const Home = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 relative">
-            {/* Connection Line */}
-            <div className="hidden lg:block absolute top-24 left-[12%] right-[12%] h-0.5 bg-gradient-to-r from-blue-200 via-emerald-200 to-purple-200"></div>
+            {/* Connection Line - Gradient */}
+            <div className="hidden lg:block absolute top-24 left-[12%] right-[12%] h-1 bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 rounded-full"></div>
             
             {steps.map((step, index) => (
               <div 
                 key={step.num}
                 className="relative text-center group"
               >
-                {/* Step Number Circle */}
-                <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-full bg-white shadow-lg mb-6 group-hover:shadow-xl group-hover:-translate-y-2 transition-all duration-300 z-10">
-                  <span className="text-3xl">{step.icon}</span>
-                  <span className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-gradient-to-r from-gray-700 to-gray-900 text-white text-sm font-bold flex items-center justify-center">
+                {/* Step Number Circle - Enhanced */}
+                <div className="relative inline-flex items-center justify-center w-24 h-24 rounded-full bg-white shadow-xl mb-6 group-hover:shadow-2xl group-hover:-translate-y-3 transition-all duration-500 z-10 border-2 border-indigo-100">
+                  <span className="text-4xl">{step.icon}</span>
+                  <span className="absolute -top-2 -right-2 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 text-white text-sm font-bold flex items-center justify-center shadow-lg">
                     {step.num}
                   </span>
                 </div>
                 
-                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors duration-300">
+                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors duration-300">
                   {step.title}
                 </h3>
                 <p className="text-gray-500">{step.desc}</p>
@@ -553,16 +574,18 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-20 bg-white" id="features" data-animate>
-        <div className="container mx-auto px-4">
+      {/* Features Section - Enhanced */}
+      <section className="py-24 bg-white relative overflow-hidden" id="features" data-animate>
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-violet-50 to-transparent rounded-full blur-3xl opacity-70"></div>
+        <div className="container mx-auto px-4 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
-              <span className="inline-block px-4 py-2 bg-violet-50 text-violet-700 rounded-full text-sm font-semibold mb-4">
+              <span className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-violet-50 to-purple-50 text-violet-700 rounded-full text-sm font-semibold mb-4 border border-violet-100">
+                <span className="w-2 h-2 bg-violet-500 rounded-full animate-pulse"></span>
                 Why Choose Us
               </span>
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                Trusted by Thousands of Happy Customers
+              <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-6">
+                Trusted by <span className="bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">Thousands</span> of Happy Customers
               </h2>
               <p className="text-lg text-gray-600 mb-8">
                 We're committed to providing the best home service experience with our verified professionals and quality assurance.
@@ -572,13 +595,13 @@ const Home = () => {
                 {features.map((feature, index) => (
                   <div 
                     key={feature.title}
-                    className="group flex items-start gap-4 p-4 rounded-xl hover:bg-gray-50 transition-all duration-300"
+                    className="group flex items-start gap-4 p-5 rounded-2xl hover:bg-gradient-to-br hover:from-indigo-50/50 hover:to-purple-50/50 transition-all duration-300 border border-transparent hover:border-indigo-100 hover:shadow-lg"
                   >
-                    <div className={`w-12 h-12 ${feature.iconBg} rounded-xl flex items-center justify-center text-xl group-hover:scale-110 transition-transform duration-300`}>
+                    <div className={`w-14 h-14 ${feature.iconBg} rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 shadow-lg`}>
                       {feature.icon}
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 mb-1">{feature.title}</h3>
+                      <h3 className="font-bold text-gray-900 mb-1">{feature.title}</h3>
                       <p className="text-sm text-gray-500">{feature.desc}</p>
                     </div>
                   </div>
@@ -602,7 +625,7 @@ const Home = () => {
                 <div className="flex items-center gap-4 mb-4">
                   <div className="flex -space-x-3">
                     {[1,2,3].map(i => (
-                      <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-gradient-to-r from-gray-400 to-gray-600"></div>
+                      <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-gray-400"></div>
                     ))}
                   </div>
                   <div className="text-sm">
@@ -624,15 +647,20 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section className="py-20 bg-gray-50" id="testimonials" data-animate>
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-14">
-            <span className="inline-block px-4 py-2 bg-rose-50 text-rose-700 rounded-full text-sm font-semibold mb-4">
+      {/* Testimonials Section - Enhanced */}
+      <section className="py-24 relative overflow-hidden" id="testimonials" data-animate style={{background: 'linear-gradient(180deg, #f8fafc 0%, #faf5ff 50%, #f8fafc 100%)'}}>
+        <div className="absolute inset-0">
+          <div className="absolute top-1/4 right-0 w-96 h-96 bg-rose-100/40 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-1/4 w-80 h-80 bg-indigo-100/30 rounded-full blur-3xl"></div>
+        </div>
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="text-center mb-16">
+            <span className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-rose-50 to-pink-50 text-rose-700 rounded-full text-sm font-semibold mb-4 border border-rose-100">
+              <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
               Testimonials
             </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              What Our Customers Say
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+              What Our Customers <span className="bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent">Say</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Real experiences from real customers who trust SkillLink
@@ -643,10 +671,13 @@ const Home = () => {
             {testimonials.map((testimonial, index) => (
               <div 
                 key={index}
-                className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-xl transition-all duration-300 group hover:-translate-y-2"
+                className="bg-white rounded-2xl p-8 border border-gray-100 hover:border-indigo-100 shadow-sm hover:shadow-xl transition-all duration-500 group hover:-translate-y-3 relative overflow-hidden"
               >
+                {/* Decorative gradient */}
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-full -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                
                 {/* Quote Icon */}
-                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-6 group-hover:bg-gray-200 transition-colors duration-300">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-500 mb-6 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 shadow-lg shadow-indigo-100">
                   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
                   </svg>
@@ -655,25 +686,28 @@ const Home = () => {
                 {/* Rating */}
                 <div className="flex items-center gap-1 mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <svg key={i} className="w-5 h-5 text-amber-400 drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
                   ))}
                 </div>
                 
                 {/* Text */}
-                <p className="text-gray-600 mb-6 leading-relaxed">"{testimonial.text}"</p>
+                <p className="text-gray-600 mb-8 leading-relaxed relative z-10">"{testimonial.text}"</p>
                 
                 {/* Author */}
-                <div className="flex items-center gap-4">
-                  <ImageWithFallback
-                    src={testimonial.image}
-                    alt={testimonial.name}
-                    type="profile"
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
+                <div className="flex items-center gap-4 pt-6 border-t border-gray-100">
+                  <div className="relative">
+                    <ImageWithFallback
+                      src={testimonial.image}
+                      alt={testimonial.name}
+                      type="profile"
+                      className="w-12 h-12 rounded-full object-cover ring-2 ring-white shadow-md"
+                    />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                  </div>
                   <div>
-                    <h4 className="font-semibold text-gray-900">{testimonial.name}</h4>
+                    <h4 className="font-bold text-gray-900">{testimonial.name}</h4>
                     <p className="text-sm text-gray-500">{testimonial.role}</p>
                   </div>
                 </div>
@@ -683,38 +717,65 @@ const Home = () => {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-gray-800 to-gray-900 relative overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
+      {/* CTA Section - Premium */}
+      <section className="py-24 relative overflow-hidden" style={{background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)'}}>
+        {/* Animated Background */}
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        </div>
+        <div className="absolute inset-0 opacity-5">
           <div className="absolute inset-0" style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
           }}></div>
         </div>
         
         <div className="container mx-auto px-4 text-center relative z-10">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-6">
-            Ready to Get Started?
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm text-indigo-300 font-medium mb-8 border border-white/10">
+            <span className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse"></span>
+            Join 50,000+ happy users
+          </div>
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
+            Ready to Get <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Started?</span>
           </h2>
-          <p className="text-xl text-gray-300 mb-10 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed">
             Join thousands of satisfied customers and experience the best home services today.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link 
               to="/services" 
-              className="inline-flex items-center justify-center px-8 py-4 bg-white text-gray-900 rounded-xl font-bold text-lg hover:bg-gray-100 transform hover:-translate-y-1 hover:shadow-xl transition-all duration-300"
+              className="group inline-flex items-center justify-center px-8 py-4.5 bg-white text-gray-900 rounded-2xl font-bold text-lg hover:bg-gray-50 transform hover:-translate-y-1 hover:shadow-2xl hover:shadow-white/20 transition-all duration-300"
             >
-              <span className="mr-2">🔧</span>
+              <span className="mr-3 text-xl">🔧</span>
               Book a Service
+              <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
             </Link>
             <Link 
               to="/register" 
-              className="inline-flex items-center justify-center px-8 py-4 bg-transparent border-2 border-white text-white rounded-xl font-bold text-lg hover:bg-white/10 transform hover:-translate-y-1 transition-all duration-300"
+              className="group inline-flex items-center justify-center px-8 py-4.5 bg-transparent border-2 border-white/30 text-white rounded-2xl font-bold text-lg hover:bg-white/10 hover:border-white/50 transform hover:-translate-y-1 transition-all duration-300"
             >
-              <span className="mr-2">🤝</span>
+              <span className="mr-3 text-xl">🤝</span>
               Join as Partner
             </Link>
+          </div>
+
+          {/* Trust Indicators */}
+          <div className="mt-16 flex flex-wrap items-center justify-center gap-8 text-gray-500">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+              <span className="text-sm font-medium text-gray-400">Verified Professionals</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+              <span className="text-sm font-medium text-gray-400">Transparent Pricing</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+              <span className="text-sm font-medium text-gray-400">Satisfaction Guaranteed</span>
+            </div>
           </div>
         </div>
       </section>
@@ -723,3 +784,4 @@ const Home = () => {
 }
 
 export default Home
+

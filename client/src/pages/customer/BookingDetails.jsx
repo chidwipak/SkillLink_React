@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
@@ -11,20 +11,93 @@ const BookingDetails = () => {
   const [loading, setLoading] = useState(true)
   const [showReview, setShowReview] = useState(false)
   const [review, setReview] = useState({ rating: 5, comment: '' })
+  const [sharingLocation, setSharingLocation] = useState(false)
+  const [currentLocation, setCurrentLocation] = useState(null)
+  const locationWatchRef = useRef(null)
 
   useEffect(() => {
     fetchBookingDetails()
+    
+    // Cleanup location watch on unmount
+    return () => {
+      if (locationWatchRef.current) {
+        navigator.geolocation.clearWatch(locationWatchRef.current)
+      }
+    }
   }, [id])
 
   const fetchBookingDetails = async () => {
     try {
       const response = await api.get(`/bookings/${id}`)
       setBooking(response.data.booking)
+      
+      // Check if location sharing was active
+      if (response.data.booking?.customerLocation) {
+        setSharingLocation(true)
+        setCurrentLocation(response.data.booking.customerLocation)
+      }
     } catch (error) {
       toast.error('Failed to load booking details')
       navigate('/dashboard/customer/bookings')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const startLocationSharing = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser')
+      return
+    }
+
+    setSharingLocation(true)
+    toast.success('Location sharing started')
+
+    // Watch position for live updates
+    locationWatchRef.current = navigator.geolocation.watchPosition(
+      async (position) => {
+        const location = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: new Date().toISOString()
+        }
+        setCurrentLocation(location)
+        
+        // Send location to server
+        try {
+          await api.post(`/bookings/${id}/share-location`, location)
+        } catch (error) {
+          console.error('Failed to update location:', error)
+        }
+      },
+      (error) => {
+        console.error('Location error:', error)
+        toast.error('Failed to get location: ' + error.message)
+        setSharingLocation(false)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000
+      }
+    )
+  }
+
+  const stopLocationSharing = async () => {
+    if (locationWatchRef.current) {
+      navigator.geolocation.clearWatch(locationWatchRef.current)
+      locationWatchRef.current = null
+    }
+    setSharingLocation(false)
+    setCurrentLocation(null)
+    
+    // Clear location on server
+    try {
+      await api.post(`/bookings/${id}/stop-location`)
+      toast.success('Location sharing stopped')
+    } catch (error) {
+      console.error('Failed to clear location:', error)
     }
   }
 
@@ -82,6 +155,55 @@ const BookingDetails = () => {
               {booking?.description && <div className="flex items-start gap-2"><span className="font-semibold">📝 Details:</span><span>{booking?.description}</span></div>}
             </div>
           </div>
+          
+          {/* Live Location Sharing Section */}
+          {(booking?.status === 'accepted' || booking?.status === 'in-progress') && (
+            <div className="card p-6">
+              <h2 className="text-xl font-semibold mb-4">
+                <i className="fas fa-map-marker-alt text-primary-600 mr-2"></i>
+                Live Location Sharing
+              </h2>
+              <p className="text-gray-600 mb-4">
+                Share your live location with the worker so they can reach you easily.
+              </p>
+              
+              {!sharingLocation ? (
+                <button 
+                  onClick={startLocationSharing}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <i className="fas fa-location-arrow"></i>
+                  Start Sharing Location
+                </button>
+              ) : (
+                <div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center gap-2 text-green-700 mb-2">
+                      <i className="fas fa-broadcast-tower animate-pulse"></i>
+                      <span className="font-semibold">Location is being shared</span>
+                    </div>
+                    {currentLocation && (
+                      <div className="text-sm text-gray-600">
+                        <p>Latitude: {currentLocation.latitude?.toFixed(6)}</p>
+                        <p>Longitude: {currentLocation.longitude?.toFixed(6)}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Last updated: {new Date(currentLocation.timestamp).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <button 
+                    onClick={stopLocationSharing}
+                    className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                  >
+                    <i className="fas fa-times"></i>
+                    Stop Sharing Location
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          
           {booking?.status === 'completed' && !booking?.rating && (
             <div className="card">
               <h2 className="text-xl font-semibold mb-4">Leave a Review</h2>

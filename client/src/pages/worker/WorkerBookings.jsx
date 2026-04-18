@@ -1,16 +1,32 @@
 import { useState, useEffect, useRef } from 'react'
 import api from '../../services/api'
 import { SkeletonList } from '../../components/ui/SkeletonLoader'
+import { useCelebration } from '../../contexts/CelebrationContext'
 import toast from 'react-hot-toast'
+import { io } from 'socket.io-client'
 
 const WorkerBookings = () => {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [showLocationModal, setShowLocationModal] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [finalPrice, setFinalPrice] = useState('')
+  const [customerLocation, setCustomerLocation] = useState(null)
+  const { celebrate } = useCelebration()
   const fetchedRef = useRef(false)
+  const socketRef = useRef(null)
+  const locationPollRef = useRef(null)
+
+  const refreshBookings = async () => {
+    try {
+      const response = await api.get('/bookings')
+      setBookings(response.data.bookings || [])
+    } catch (error) {
+      console.error('Refresh bookings error:', error)
+    }
+  }
 
   useEffect(() => {
     // Prevent double fetch
@@ -30,16 +46,44 @@ const WorkerBookings = () => {
     }
     
     loadBookings()
-  }, [])
 
-  const refreshBookings = async () => {
-    try {
-      const response = await api.get('/bookings')
-      setBookings(response.data.bookings || [])
-    } catch (error) {
-      console.error('Refresh bookings error:', error)
+    // Setup socket connection for real-time updates
+    const token = localStorage.getItem('token')
+    if (token) {
+      socketRef.current = io('http://localhost:3001', {
+        auth: { token }
+      })
+
+      // Listen for booking rejection events (when another worker accepts)
+      socketRef.current.on('booking-rejected', (data) => {
+        console.log('Booking rejected event:', data)
+        if (data.reason === 'accepted_by_another') {
+          // Remove the rejected booking from the list immediately
+          setBookings(prev => prev.filter(b => b._id !== data.booking._id))
+          toast.info('This booking was accepted by another worker', {
+            duration: 3000,
+            icon: 'ℹ️'
+          })
+        }
+      })
+
+      // Listen for new bookings
+      socketRef.current.on('new-booking', () => {
+        console.log('New booking received')
+        refreshBookings()
+      })
     }
-  }
+
+    // Cleanup socket on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+      }
+      if (locationPollRef.current) {
+        clearInterval(locationPollRef.current)
+      }
+    }
+  }, [])
 
   const handleAccept = async (id) => {
     try {
@@ -61,6 +105,53 @@ const WorkerBookings = () => {
     }
   }
 
+  // View customer location
+  const handleViewLocation = async (booking) => {
+    setSelectedBooking(booking)
+    setShowLocationModal(true)
+    
+    // Fetch current location
+    try {
+      const response = await api.get(`/bookings/${booking._id}`)
+      if (response.data.booking?.customerLocation) {
+        setCustomerLocation(response.data.booking.customerLocation)
+      } else {
+        setCustomerLocation(null)
+      }
+    } catch (error) {
+      console.error('Failed to fetch location:', error)
+    }
+    
+    // Poll for location updates
+    locationPollRef.current = setInterval(async () => {
+      try {
+        const response = await api.get(`/bookings/${booking._id}`)
+        if (response.data.booking?.customerLocation) {
+          setCustomerLocation(response.data.booking.customerLocation)
+        }
+      } catch (error) {
+        console.error('Location poll error:', error)
+      }
+    }, 5000) // Poll every 5 seconds
+  }
+
+  const closeLocationModal = () => {
+    setShowLocationModal(false)
+    setSelectedBooking(null)
+    setCustomerLocation(null)
+    if (locationPollRef.current) {
+      clearInterval(locationPollRef.current)
+      locationPollRef.current = null
+    }
+  }
+
+  const openInGoogleMaps = () => {
+    if (customerLocation) {
+      const url = `https://www.google.com/maps?q=${customerLocation.latitude},${customerLocation.longitude}`
+      window.open(url, '_blank')
+    }
+  }
+
   const handleReject = async (id) => {
     const reason = prompt('Reason for rejection:')
     if (!reason) return
@@ -79,17 +170,42 @@ const WorkerBookings = () => {
     setShowCompleteModal(true)
   }
 
+  // Calculate allowed price range (±30% of original price)
+  const getPriceRange = () => {
+    if (!selectedBooking || !selectedBooking.price) {
+      return { min: 0, max: 10000 }
+    }
+    const basePrice = selectedBooking.price
+    const minPrice = Math.floor(basePrice * 0.7) // -30%
+    const maxPrice = Math.ceil(basePrice * 1.5) // +50%
+    return { min: minPrice, max: maxPrice }
+  }
+
   const handleComplete = async () => {
     if (!finalPrice || parseFloat(finalPrice) <= 0) {
       toast.error('Please enter a valid final price')
       return
     }
 
+    const priceRange = getPriceRange()
+    const enteredPrice = parseFloat(finalPrice)
+    
+    if (enteredPrice < priceRange.min) {
+      toast.error(`Price cannot be less than ₹${priceRange.min} (70% of original price)`)
+      return
+    }
+    
+    if (enteredPrice > priceRange.max) {
+      toast.error(`Price cannot exceed ₹${priceRange.max} (150% of original price)`)
+      return
+    }
+
     try {
       const response = await api.put(`/bookings/${selectedBooking._id}/complete`, {
-        finalPrice: parseFloat(finalPrice)
+        finalPrice: enteredPrice
       })
       toast.success('Booking completed successfully! Earnings updated.')
+      celebrate({ count: 200 })
       setShowCompleteModal(false)
       setSelectedBooking(null)
       setFinalPrice('')
@@ -236,13 +352,22 @@ const WorkerBookings = () => {
                         </div>
                       )}
                       {(booking.status === 'accepted' || booking.status === 'in-progress') && (
-                        <button 
-                          className="btn btn-sm btn-success" 
-                          onClick={() => handleCompleteClick(booking)}
-                          title="Mark Completed & Enter Final Price"
-                        >
-                          <i className="fas fa-check-circle me-1"></i> Complete
-                        </button>
+                        <div className="d-flex gap-1">
+                          <button 
+                            className="btn btn-sm btn-info" 
+                            onClick={() => handleViewLocation(booking)}
+                            title="View Customer Location"
+                          >
+                            <i className="fas fa-map-marker-alt"></i>
+                          </button>
+                          <button 
+                            className="btn btn-sm btn-success" 
+                            onClick={() => handleCompleteClick(booking)}
+                            title="Mark Completed & Enter Final Price"
+                          >
+                            <i className="fas fa-check-circle me-1"></i> Complete
+                          </button>
+                        </div>
                       )}
                       {booking.status === 'completed' && (
                         <span className="text-success small">
@@ -282,11 +407,23 @@ const WorkerBookings = () => {
                     {selectedBooking.address && (
                       <>
                         Address: <strong>
-                          {selectedBooking.address.street}, {selectedBooking.address.city}, {selectedBooking.address.state} - {selectedBooking.address.zipCode}
+                          {typeof selectedBooking.address === 'string' 
+                            ? selectedBooking.address 
+                            : `${selectedBooking.address.street}, ${selectedBooking.address.city}, ${selectedBooking.address.state} - ${selectedBooking.address.zipCode}`
+                          }
                         </strong>
                       </>
                     )}
                   </p>
+                  
+                  {/* Price Range Info */}
+                  <div className="alert alert-info mb-3">
+                    <i className="fas fa-info-circle me-2"></i>
+                    <strong>Price Range:</strong> ₹{getPriceRange().min} - ₹{getPriceRange().max}
+                    <br/>
+                    <small>Final price must be within 70% to 150% of the original service price to ensure fair pricing.</small>
+                  </div>
+                  
                   <label className="form-label">Final Service Price</label>
                   <div className="input-group">
                     <span className="input-group-text">₹</span>
@@ -296,22 +433,140 @@ const WorkerBookings = () => {
                       value={finalPrice}
                       onChange={(e) => setFinalPrice(e.target.value)}
                       placeholder="Enter final price"
-                      min="0"
-                      step="0.01"
+                      min={getPriceRange().min}
+                      max={getPriceRange().max}
+                      step="1"
                       required
                     />
                   </div>
                   <small className="text-muted">
                     Enter the final price charged for this service. This will be added to your earnings.
                   </small>
+                  
+                  {/* Price validation feedback */}
+                  {finalPrice && (
+                    <div className="mt-2">
+                      {parseFloat(finalPrice) < getPriceRange().min && (
+                        <span className="text-danger small">
+                          <i className="fas fa-exclamation-circle me-1"></i>
+                          Price too low. Minimum: ₹{getPriceRange().min}
+                        </span>
+                      )}
+                      {parseFloat(finalPrice) > getPriceRange().max && (
+                        <span className="text-danger small">
+                          <i className="fas fa-exclamation-circle me-1"></i>
+                          Price too high. Maximum: ₹{getPriceRange().max}
+                        </span>
+                      )}
+                      {parseFloat(finalPrice) >= getPriceRange().min && parseFloat(finalPrice) <= getPriceRange().max && (
+                        <span className="text-success small">
+                          <i className="fas fa-check-circle me-1"></i>
+                          Price is within valid range
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCompleteModal(false)}>
                   Cancel
                 </button>
-                <button type="button" className="btn btn-success" onClick={handleComplete}>
+                <button 
+                  type="button" 
+                  className="btn btn-success" 
+                  onClick={handleComplete}
+                  disabled={!finalPrice || parseFloat(finalPrice) < getPriceRange().min || parseFloat(finalPrice) > getPriceRange().max}
+                >
                   <i className="fas fa-check-circle me-1"></i> Complete Job
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Location Modal */}
+      {showLocationModal && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{backgroundColor: 'rgba(0,0,0,0.5)'}} onClick={closeLocationModal}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="fas fa-map-marker-alt text-danger me-2"></i>
+                  Customer Live Location
+                </h5>
+                <button type="button" className="btn-close" onClick={closeLocationModal}></button>
+              </div>
+              <div className="modal-body">
+                {selectedBooking && (
+                  <div className="mb-3">
+                    <p className="text-muted mb-2">
+                      <strong>Customer:</strong> {selectedBooking.customer?.name}<br/>
+                      <strong>Service:</strong> {selectedBooking.service?.name}
+                    </p>
+                  </div>
+                )}
+                
+                {customerLocation ? (
+                  <div className="text-center">
+                    <div className="alert alert-success mb-3">
+                      <i className="fas fa-broadcast-tower me-2"></i>
+                      <strong>Location is being shared</strong>
+                    </div>
+                    
+                    <div className="bg-light p-3 rounded mb-3">
+                      <div className="row text-center">
+                        <div className="col-6">
+                          <small className="text-muted">Latitude</small>
+                          <p className="mb-0 fw-bold">{customerLocation.latitude?.toFixed(6)}</p>
+                        </div>
+                        <div className="col-6">
+                          <small className="text-muted">Longitude</small>
+                          <p className="mb-0 fw-bold">{customerLocation.longitude?.toFixed(6)}</p>
+                        </div>
+                      </div>
+                      {customerLocation.accuracy && (
+                        <div className="mt-2">
+                          <small className="text-muted">
+                            <i className="fas fa-crosshairs me-1"></i>
+                            Accuracy: ±{customerLocation.accuracy?.toFixed(0)}m
+                          </small>
+                        </div>
+                      )}
+                      {customerLocation.timestamp && (
+                        <div className="mt-1">
+                          <small className="text-muted">
+                            <i className="fas fa-clock me-1"></i>
+                            Updated: {new Date(customerLocation.timestamp).toLocaleTimeString()}
+                          </small>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <button 
+                      className="btn btn-primary btn-lg w-100"
+                      onClick={openInGoogleMaps}
+                    >
+                      <i className="fas fa-directions me-2"></i>
+                      Open in Google Maps
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <i className="fas fa-map-marker-alt text-muted mb-3" style={{fontSize: '3rem'}}></i>
+                    <p className="text-muted mb-0">
+                      Customer has not shared their location yet.
+                    </p>
+                    <small className="text-muted">
+                      Ask the customer to enable location sharing from their booking details page.
+                    </small>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={closeLocationModal}>
+                  Close
                 </button>
               </div>
             </div>

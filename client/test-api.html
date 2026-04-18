@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+        pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>SkillLink API Tests</h1>
+    <button onclick="runTests()">Run Tests</button>
+    <div id="results"></div>
+
+    <script>
+        const API_URL = 'http://localhost:5005/api';
+        
+        async function testEndpoint(name, url, method = 'GET', body = null) {
+            const resultDiv = document.getElementById('results');
+            const testDiv = document.createElement('div');
+            testDiv.className = 'test';
+            testDiv.innerHTML = `<h3>${name}</h3><p>Testing ${method} ${url}...</p>`;
+            resultDiv.appendChild(testDiv);
+            
+            try {
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+                
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+                
+                const response = await fetch(url, options);
+                const data = await response.json();
+                
+                testDiv.className = 'test ' + (response.ok ? 'success' : 'error');
+                testDiv.innerHTML += `
+                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                    <pre>${JSON.stringify(data, null, 2).substring(0, 500)}</pre>
+                `;
+            } catch (error) {
+                testDiv.className = 'test error';
+                testDiv.innerHTML += `<p><strong>Error:</strong> ${error.message}</p>`;
+            }
+        }
+        
+        async function runTests() {
+            document.getElementById('results').innerHTML = '';
+            
+            // Test 1: Get products
+            await testEndpoint('Get All Products', `${API_URL}/supplies`);
+            
+            // Test 2: Get unique products
+            await testEndpoint('Get Unique Products', `${API_URL}/supplies/unique`);
+            
+            // Test 3: Login
+            await testEndpoint('Login', `${API_URL}/auth/login`, 'POST', {
+                email: 'ananya@example.com',
+                password: 'Customer@123'
+            });
+            
+            // Test 4: Get services
+            await testEndpoint('Get Services', `${API_URL}/services`);
+        }
+    </script>
+</body>
+</html>

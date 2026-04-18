@@ -23,6 +23,9 @@ const SellerProducts = () => {
     image: null
   })
   const [imagePreview, setImagePreview] = useState(null)
+  const [csvFile, setCsvFile] = useState(null)
+  const [csvUploading, setCsvUploading] = useState(false)
+  const [showCsvSection, setShowCsvSection] = useState(false)
 
   useEffect(() => {
     fetchProducts()
@@ -155,6 +158,27 @@ const SellerProducts = () => {
     ? products 
     : products.filter(p => p.category === selectedCategory)
 
+  const handleCsvUpload = async () => {
+    if (!csvFile) { toast.error('Please select a CSV file'); return }
+    try {
+      setCsvUploading(true)
+      const formData = new FormData()
+      formData.append('csvFile', csvFile)
+      const res = await api.post('/supplies/csv-upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      toast.success(res.data.message || `Uploaded ${res.data.productsCreated} products!`)
+      if (res.data.errors?.length > 0) {
+        toast(`${res.data.errors.length} row(s) had issues`, { icon: '⚠️' })
+      }
+      setCsvFile(null)
+      setShowCsvSection(false)
+      fetchProducts()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'CSV upload failed')
+    } finally {
+      setCsvUploading(false)
+    }
+  }
+
   const getCategoryLabel = (cat) => {
     return cat.charAt(0).toUpperCase() + cat.slice(1)
   }
@@ -162,43 +186,81 @@ const SellerProducts = () => {
   if (loading) return <LoadingSpinner />
 
   return (
-    <div className="container-fluid px-4 py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
+    <div className="page-enter px-1">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3">
         <div>
-          <h1 className="h3 mb-1">My Products</h1>
-          <p className="text-muted mb-0">
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight mb-1">My Products</h1>
+          <p className="text-sm text-gray-500">
             Manage products in your categories: {categories.map(getCategoryLabel).join(', ')}
           </p>
         </div>
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowAddModal(true)}
-        >
-          + Add New Product
-        </button>
+        <div className="flex gap-2">
+          <button 
+            className="sk-btn sk-btn-primary"
+            onClick={() => setShowAddModal(true)}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Add New Product
+          </button>
+          <button 
+            className={`sk-btn ${showCsvSection ? 'sk-btn-danger' : 'sk-btn-success'}`}
+            onClick={() => setShowCsvSection(!showCsvSection)}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+            {showCsvSection ? 'Cancel CSV' : 'CSV Upload'}
+          </button>
+        </div>
       </div>
 
-      {/* Category Filter */}
-      <div className="card mb-4">
-        <div className="card-body py-3">
-          <div className="d-flex align-items-center gap-3 flex-wrap">
-            <span className="text-muted">Filter by category:</span>
-            <button 
-              className={`btn btn-sm ${selectedCategory === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => setSelectedCategory('all')}
-            >
-              All ({products.length})
-            </button>
-            {categories.map(cat => (
-              <button 
-                key={cat}
-                className={`btn btn-sm ${selectedCategory === cat ? 'btn-primary' : 'btn-outline-primary'}`}
-                onClick={() => setSelectedCategory(cat)}
-              >
-                {getCategoryLabel(cat)} ({products.filter(p => p.category === cat).length})
-              </button>
-            ))}
+      {/* CSV Upload Section */}
+      {showCsvSection && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-5 mb-5 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-2xl flex-shrink-0">📄</div>
+            <div className="flex-1">
+              <h3 className="font-bold text-green-800 text-lg">Bulk Product Upload via CSV</h3>
+              <p className="text-sm text-green-600 mb-3">Upload a CSV file with columns: <code className="bg-green-100 px-1.5 py-0.5 rounded text-xs">name, brand, category, price, stock, description</code></p>
+              <div className="flex items-center gap-3">
+                <label className="flex-1 cursor-pointer">
+                  <div className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${csvFile ? 'border-green-400 bg-green-50' : 'border-green-300 hover:border-green-400 hover:bg-green-50/50'}`}>
+                    {csvFile ? (
+                      <div><span className="text-green-700 font-semibold">{csvFile.name}</span><span className="text-green-500 text-xs ml-2">({(csvFile.size / 1024).toFixed(1)} KB)</span></div>
+                    ) : (
+                      <div><span className="text-green-600 text-sm">Click to select CSV file or drag & drop</span></div>
+                    )}
+                    <input type="file" accept=".csv" className="hidden" onChange={(e) => setCsvFile(e.target.files[0])} />
+                  </div>
+                </label>
+                <button onClick={handleCsvUpload} disabled={!csvFile || csvUploading} className="px-6 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50 transition-all shadow-lg shadow-green-200">
+                  {csvUploading ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+              <p className="text-xs text-green-500 mt-2">Category must be one of: electrical, plumbing, carpentry. Max 5MB.</p>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Category Filter */}
+      <div className="bg-white rounded-xl border border-gray-100 p-4 mb-5 shadow-sm">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-gray-500 font-medium">Filter:</span>
+          <button 
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${selectedCategory === 'all' ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+            onClick={() => setSelectedCategory('all')}
+          >
+            All ({products.length})
+          </button>
+          {categories.map(cat => (
+            <button 
+              key={cat}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${selectedCategory === cat ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+              onClick={() => setSelectedCategory(cat)}
+            >
+              {getCategoryLabel(cat)} ({products.filter(p => p.category === cat).length})
+            </button>
+          ))}
         </div>
       </div>
 
@@ -339,30 +401,18 @@ const SellerProducts = () => {
       )}
 
       {/* Summary Cards */}
-      <div className="row mt-4">
-        <div className="col-md-4">
-          <div className="card bg-primary text-white">
-            <div className="card-body">
-              <h6 className="card-title">Total Products</h6>
-              <h2 className="mb-0">{products.length}</h2>
-            </div>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+        <div className="rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 p-5 text-white shadow-lg shadow-indigo-200">
+          <h6 className="text-indigo-100 text-sm font-medium mb-1">Total Products</h6>
+          <h2 className="text-3xl font-extrabold mb-0">{products.length}</h2>
         </div>
-        <div className="col-md-4">
-          <div className="card bg-success text-white">
-            <div className="card-body">
-              <h6 className="card-title">In Stock</h6>
-              <h2 className="mb-0">{products.filter(p => p.stock > 0).length}</h2>
-            </div>
-          </div>
+        <div className="rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 p-5 text-white shadow-lg shadow-green-200">
+          <h6 className="text-emerald-100 text-sm font-medium mb-1">In Stock</h6>
+          <h2 className="text-3xl font-extrabold mb-0">{products.filter(p => p.stock > 0).length}</h2>
         </div>
-        <div className="col-md-4">
-          <div className="card bg-danger text-white">
-            <div className="card-body">
-              <h6 className="card-title">Out of Stock</h6>
-              <h2 className="mb-0">{products.filter(p => p.stock === 0).length}</h2>
-            </div>
-          </div>
+        <div className="rounded-xl bg-gradient-to-br from-red-500 to-rose-600 p-5 text-white shadow-lg shadow-red-200">
+          <h6 className="text-red-100 text-sm font-medium mb-1">Out of Stock</h6>
+          <h2 className="text-3xl font-extrabold mb-0">{products.filter(p => p.stock === 0).length}</h2>
         </div>
       </div>
 

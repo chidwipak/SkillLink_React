@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { login } from '../../store/slices/authSlice'
+import { useCelebration } from '../../contexts/CelebrationContext'
 import toast from 'react-hot-toast'
 import '../../styles/auth.css'
 
@@ -10,9 +11,11 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState({})
   const [touched, setTouched] = useState({})
+  const [verificationModal, setVerificationModal] = useState(null)
   const { isLoading } = useSelector((state) => state.auth)
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const { celebrate } = useCelebration()
 
   // Real-time validation
   useEffect(() => {
@@ -58,10 +61,24 @@ const Login = () => {
     
     try {
       await dispatch(login(formData)).unwrap()
+      celebrate({ count: 200 })
       toast.success('Welcome back! 🎉')
       navigate('/dashboard')
     } catch (error) {
-      toast.error(error || 'Login failed. Please check your credentials.')
+      if (error?.verification_status === 'Pending') {
+        setVerificationModal({
+          type: 'pending',
+          message: 'Your account is pending approval. Please wait until it is approved by the verifier.',
+        })
+      } else if (error?.verification_status === 'Rejected') {
+        setVerificationModal({
+          type: 'rejected',
+          message: error.message || 'Your account was rejected. Please register again with valid details.',
+          feedback: error.rejection_feedback,
+        })
+      } else {
+        toast.error(error?.message || error || 'Login failed. Please check your credentials.')
+      }
     }
   }
 
@@ -79,131 +96,185 @@ const Login = () => {
 
   return (
     <div className="auth-page">
-      {/* Animated background orbs */}
-      <div className="orb orb-1"></div>
-      <div className="orb orb-2"></div>
-      <div className="orb orb-3"></div>
-      
-      <div className="container min-vh-100 d-flex align-items-center justify-content-center py-5">
-        <div className="row justify-content-center w-100">
-          <div className="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
-            <div className="auth-card p-4 p-md-5">
-              {/* Logo */}
-              <div className="text-center mb-4">
-                <div className="auth-logo mx-auto">
-                  <span>🔧</span>
-                </div>
-              </div>
-              
-              {/* Title */}
-              <h1 className="auth-title text-center">Welcome Back</h1>
-              <p className="auth-subtitle text-center mb-4">
-                Sign in to continue to SkillLink
-              </p>
-
-              <form onSubmit={handleSubmit}>
-                {/* Email Input */}
-                <div className="auth-input-group">
-                  <span className="auth-icon">📧</span>
-                  <input
-                    type="email"
-                    className={getInputClassName('email')}
-                    placeholder="Email address"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    onBlur={() => handleBlur('email')}
-                    autoComplete="email"
-                  />
-                  <label className="auth-label">Email address</label>
-                  {touched.email && errors.email && (
-                    <div className="validation-message error">
-                      <span>⚠️</span> {errors.email}
-                    </div>
-                  )}
-                  {touched.email && !errors.email && formData.email && (
-                    <div className="validation-message success">
-                      <span>✓</span> Valid email
-                    </div>
-                  )}
-                </div>
-
-                {/* Password Input */}
-                <div className="auth-input-group">
-                  <span className="auth-icon">🔒</span>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    className={getInputClassName('password')}
-                    placeholder="Password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    onBlur={() => handleBlur('password')}
-                    autoComplete="current-password"
-                  />
-                  <label className="auth-label">Password</label>
-                  <button
-                    type="button"
-                    className="password-toggle"
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
-                  </button>
-                  {touched.password && errors.password && (
-                    <div className="validation-message error">
-                      <span>⚠️</span> {errors.password}
-                    </div>
-                  )}
-                </div>
-
-                {/* Remember & Forgot */}
-                <div className="d-flex justify-content-between align-items-center mb-4" style={{ animation: 'inputSlide 0.6s ease-out 0.7s forwards', opacity: 0 }}>
-                  <label className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', color: '#64748b' }}>
-                    <input type="checkbox" className="auth-checkbox" />
-                    <span style={{ fontSize: '0.9rem' }}>Remember me</span>
-                  </label>
-                  <Link to="/forgot-password" className="auth-link" style={{ fontSize: '0.9rem' }}>
-                    Forgot password?
-                  </Link>
-                </div>
-
-                {/* Submit Button */}
-                <button 
-                  type="submit" 
-                  className="auth-btn auth-btn-primary"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <span className="btn-spinner"></span>
-                      Signing in...
-                    </>
-                  ) : (
-                    <>Sign In</>
-                  )}
-                </button>
-
-                {/* Divider */}
-                <div className="auth-divider">
-                  <span>or</span>
-                </div>
-
-                {/* Register Link */}
-                <div className="text-center" style={{ animation: 'fadeIn 0.8s ease-out 1.1s forwards', opacity: 0 }}>
-                  <span style={{ color: '#64748b' }}>Don't have an account? </span>
-                  <Link to="/register" className="auth-link fw-semibold">
-                    Create Account
-                  </Link>
-                </div>
-              </form>
-            </div>
-
-            {/* Footer */}
-            <p className="auth-footer">
-              © 2025 SkillLink. All rights reserved.
-            </p>
+      <div className="auth-card">
+        {/* Logo */}
+        <div className="text-center mb-4">
+          <div className="auth-logo mx-auto">
+            <span>🔧</span>
           </div>
         </div>
+        
+        {/* Title */}
+        <h1 className="auth-title text-center">Welcome Back</h1>
+        <p className="auth-subtitle text-center mb-4">
+          Sign in to continue to SkillLink
+        </p>
+
+        <form onSubmit={handleSubmit}>
+          {/* Email Input */}
+          <div className="auth-input-group">
+            <span className="auth-icon">📧</span>
+            <input
+              type="email"
+              className={getInputClassName('email')}
+              placeholder="Email address"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onBlur={() => handleBlur('email')}
+              autoComplete="email"
+            />
+            <label className="auth-label">Email address</label>
+            {touched.email && errors.email && (
+              <div className="validation-message error">
+                <span>⚠️</span> {errors.email}
+              </div>
+            )}
+            {touched.email && !errors.email && formData.email && (
+              <div className="validation-message success">
+                <span>✓</span> Valid email
+              </div>
+            )}
+          </div>
+
+          {/* Password Input */}
+          <div className="auth-input-group">
+            <span className="auth-icon">🔒</span>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              className={getInputClassName('password')}
+              placeholder="Password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onBlur={() => handleBlur('password')}
+              autoComplete="current-password"
+            />
+            <label className="auth-label">Password</label>
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+            >
+              {showPassword ? '👁️' : '👁️‍🗨️'}
+            </button>
+            {touched.password && errors.password && (
+              <div className="validation-message error">
+                <span>⚠️</span> {errors.password}
+              </div>
+            )}
+          </div>
+
+          {/* Remember & Forgot */}
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <label className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', color: '#475569' }}>
+              <input type="checkbox" className="auth-checkbox" />
+              <span style={{ fontSize: '0.9rem' }}>Remember me</span>
+            </label>
+            <Link to="/forgot-password" className="auth-link" style={{ fontSize: '0.9rem' }}>
+              Forgot password?
+            </Link>
+          </div>
+
+          {/* Submit Button */}
+          <button 
+            type="submit" 
+            className="auth-btn auth-btn-primary"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <span className="btn-spinner"></span>
+                Signing in...
+              </>
+            ) : (
+              <>Sign In</>
+            )}
+          </button>
+
+          {/* Divider */}
+          <div className="auth-divider">
+            <span>or</span>
+          </div>
+
+          {/* Register Link */}
+          <div className="text-center">
+            <span style={{ color: '#64748b' }}>Don't have an account? </span>
+            <Link to="/register" className="auth-link fw-semibold">
+              Create Account
+            </Link>
+          </div>
+        </form>
+
+        {/* Footer */}
+        <p className="auth-footer">
+          © 2025 SkillLink. All rights reserved.
+        </p>
       </div>
+
+      {/* Verification Status Modal */}
+      {verificationModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            background: 'white', borderRadius: '20px', maxWidth: '420px', width: '90%',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.25)', overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '24px 24px 20px',
+              background: verificationModal.type === 'pending'
+                ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                : 'linear-gradient(135deg, #ef4444, #dc2626)',
+              textAlign: 'center', color: 'white'
+            }}>
+              <div style={{ fontSize: '48px', marginBottom: '8px' }}>
+                {verificationModal.type === 'pending' ? '⏳' : '❌'}
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>
+                {verificationModal.type === 'pending' ? 'Account Pending Approval' : 'Account Rejected'}
+              </h3>
+            </div>
+            {/* Modal Content */}
+            <div style={{ padding: '24px', textAlign: 'center' }}>
+              <p style={{ color: '#475569', fontSize: '0.95rem', lineHeight: 1.6, margin: '0 0 16px' }}>
+                {verificationModal.message}
+              </p>
+              {verificationModal.feedback && (
+                <div style={{
+                  background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px',
+                  padding: '12px 16px', marginBottom: '16px', textAlign: 'left'
+                }}>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#991b1b', fontWeight: 600 }}>Rejection Feedback:</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#b91c1c' }}>{verificationModal.feedback}</p>
+                </div>
+              )}
+              <button
+                onClick={() => setVerificationModal(null)}
+                style={{
+                  padding: '10px 32px', borderRadius: '12px', border: 'none',
+                  background: verificationModal.type === 'pending'
+                    ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                    : 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }}
+              >
+                {verificationModal.type === 'pending' ? 'OK, I\'ll Wait' : 'OK, Understood'}
+              </button>
+              {verificationModal.type === 'rejected' && (
+                <div style={{ marginTop: '12px' }}>
+                  <Link to="/register" className="auth-link" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                    Register Again →
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

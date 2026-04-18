@@ -12,7 +12,13 @@ export const login = createAsyncThunk(
       }
       return response.data.user
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Login failed')
+      const data = error.response?.data || {}
+      // Pass full error data including verification_status
+      return rejectWithValue({
+        message: data.message || 'Login failed',
+        verification_status: data.verification_status || null,
+        rejection_feedback: data.rejection_feedback || null,
+      })
     }
   }
 )
@@ -41,8 +47,17 @@ export const getProfile = createAsyncThunk(
   }
 )
 
-export const logout = createAsyncThunk('auth/logout', async () => {
+export const logout = createAsyncThunk('auth/logout', async (_, { rejectWithValue }) => {
+  try {
+    // Delete all read notifications before logout (cleanup)
+    await api.delete('/notifications/cleanup/read')
+  } catch (error) {
+    // Ignore errors - still proceed with logout
+    console.log('Notification cleanup skipped:', error.message)
+  }
   localStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
 })
 
 // Load initial state from localStorage
@@ -98,7 +113,7 @@ const authSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false
-        state.error = action.payload
+        state.error = action.payload?.message || action.payload
       })
       .addCase(register.pending, (state) => {
         state.isLoading = true
