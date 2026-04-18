@@ -12,7 +12,7 @@ const getImageUrl = (path) => {
   if (path.startsWith('http')) return path
   // Remove leading slash if present for proper concatenation
   const cleanPath = path.startsWith('/') ? path : `/${path}`
-  return `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001'}${cleanPath}`
+  return `${import.meta.env.VITE_API_BASE_URL || ''}${cleanPath}`
 }
 
 const Profile = () => {

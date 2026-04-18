@@ -3,7 +3,7 @@ import api from '../../services/api'
 import PieChart from '../ui/PieChart'
 import LoadingSpinner from '../common/LoadingSpinner'
 
-const BASE_URL = 'http://localhost:5005'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const AdminUserDetailPanel = ({ userId, onClose }) => {
   const [data, setData] = useState(null)

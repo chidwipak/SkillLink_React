@@ -45,7 +45,7 @@ const ImageWithFallback = ({
     if (path.startsWith('data:')) return path // Base64 preview images
     // Handle relative paths from backend
     const cleanPath = path.startsWith('/') ? path : `/${path}`
-    return `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001'}${cleanPath}`
+    return `${import.meta.env.VITE_API_BASE_URL || ''}${cleanPath}`
   }
 
   // Get the appropriate fallback for this type

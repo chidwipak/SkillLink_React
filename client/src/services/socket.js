@@ -34,7 +34,7 @@ class SocketService {
       this.socket = null
     }
 
-    this.socket = io(import.meta.env.VITE_SOCKET_URL || '/', {
+    this.socket = io(import.meta.env.VITE_API_BASE_URL || '/', {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
